@@ -81,6 +81,35 @@ export function hydrateCopy(container, copy) {
   });
 }
 
+const FCORS_PROXY = 'https://fcors.org/?url=';
+const FCORS_KEY = 'lakudfyapuodfyha';
+
+/**
+ * Whether the current page host can fetch AEM/Cat origins directly.
+ * @returns {boolean}
+ */
+function isTrustedHost() {
+  const { hostname } = window.location;
+  return hostname === 'aem.network'
+    || hostname.endsWith('.aem.network')
+    || hostname === 'cat.com'
+    || hostname.endsWith('.cat.com');
+}
+
+/**
+ * Fetches JSON, proxying through fcors.org when the page is not on a trusted host.
+ * @param {string} url Absolute URL to fetch
+ * @returns {Promise<any>}
+ */
+export async function fetchJson(url) {
+  const requestUrl = isTrustedHost()
+    ? url
+    : `${FCORS_PROXY}${encodeURIComponent(url)}&key=${FCORS_KEY}`;
+  const resp = await fetch(requestUrl);
+  if (!resp.ok) throw new Error(`Failed to fetch ${url}: ${resp.status}`);
+  return resp.json();
+}
+
 /**
  * load fonts.css and set a session storage flag
  */

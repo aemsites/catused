@@ -7,33 +7,81 @@
       type="text"
       data-copy="searchPlaceholder"
       data-copy-target="placeholder"
+      autocomplete="off"
+      aria-autocomplete="list"
       placeholder="Search by model or category"
     >
   </div>
   <div class="search-filters">
-    <div class="field sel">
-      <label for="equipment-hours" data-copy="hours">Hours</label>
-      <select id="equipment-hours" name="hours">
-        <option value="" data-copy="any">Any</option>
-        <option value="0-1000" data-copy="hours0to1000">0 – 1,000</option>
-        <option value="1000-3000" data-copy="hours1000to3000">1,000 – 3,000</option>
-        <option value="3000-6000" data-copy="hours3000to6000">3,000 – 6,000</option>
-        <option value="6000+" data-copy="hours6000Plus">6,000+</option>
-      </select>
+    <div class="field sel hours-field">
+      <span id="hours-label" data-copy="hours">Hours</span>
+      <button
+        type="button"
+        class="range-trigger"
+        id="equipment-hours-trigger"
+        aria-expanded="false"
+        aria-haspopup="dialog"
+        aria-controls="hours-panel"
+        aria-labelledby="hours-label"
+      >
+        <span class="range-trigger-value" data-copy="any">Any</span>
+      </button>
+      <div class="range-panel" id="hours-panel" hidden role="dialog" aria-labelledby="hours-panel-title">
+        <p class="range-panel-title" id="hours-panel-title" data-copy="chooseHoursRange">Choose hours range</p>
+        <div class="range-histogram" aria-hidden="true"></div>
+        <div class="range-slider">
+          <div class="range-rail" aria-hidden="true"><span class="range-rail-active"></span></div>
+          <input type="range" class="range-thumb range-thumb-min" id="hours-min-slider" aria-label="Minimum hours">
+          <input type="range" class="range-thumb range-thumb-max" id="hours-max-slider" aria-label="Maximum hours">
+        </div>
+        <div class="range-fields">
+          <label class="range-field">
+            <input type="text" inputmode="numeric" class="range-min-input" id="hours-min" autocomplete="off">
+            <span data-copy="min">Min</span>
+          </label>
+          <label class="range-field">
+            <input type="text" inputmode="numeric" class="range-max-input" id="hours-max" autocomplete="off">
+            <span data-copy="max">Max</span>
+          </label>
+        </div>
+      </div>
     </div>
-    <div class="field sel">
-      <label for="equipment-price" data-copy="price">Price</label>
-      <select id="equipment-price" name="price">
-        <option value="" data-copy="any">Any</option>
-        <option value="under-50k" data-copy="priceUnder50k">Under $50k</option>
-        <option value="50k-150k" data-copy="price50to150k">$50k – $150k</option>
-        <option value="150k-300k" data-copy="price150to300k">$150k – $300k</option>
-        <option value="300k+" data-copy="price300kPlus">$300k+</option>
-      </select>
+    <div class="field sel price-field">
+      <span id="price-label" data-copy="price">Price</span>
+      <button
+        type="button"
+        class="range-trigger"
+        id="equipment-price-trigger"
+        aria-expanded="false"
+        aria-haspopup="dialog"
+        aria-controls="price-panel"
+        aria-labelledby="price-label"
+      >
+        <span class="range-trigger-value" data-copy="any">Any</span>
+      </button>
+      <div class="range-panel" id="price-panel" hidden role="dialog" aria-labelledby="price-panel-title">
+        <p class="range-panel-title" id="price-panel-title" data-copy="choosePriceRange">Choose price range</p>
+        <div class="range-histogram" aria-hidden="true"></div>
+        <div class="range-slider">
+          <div class="range-rail" aria-hidden="true"><span class="range-rail-active"></span></div>
+          <input type="range" class="range-thumb range-thumb-min" id="price-min-slider" aria-label="Minimum price">
+          <input type="range" class="range-thumb range-thumb-max" id="price-max-slider" aria-label="Maximum price">
+        </div>
+        <div class="range-fields">
+          <label class="range-field">
+            <input type="text" inputmode="numeric" class="range-min-input" id="price-min" autocomplete="off">
+            <span data-copy="min">Min</span>
+          </label>
+          <label class="range-field">
+            <input type="text" inputmode="numeric" class="range-max-input" id="price-max" autocomplete="off">
+            <span data-copy="max">Max</span>
+          </label>
+        </div>
+      </div>
     </div>
   </div>
   <button type="submit" class="button accent">
     <span data-copy="search">Search</span>
-    <span class="count" data-copy="resultCount">427</span>
+    <span class="count">0</span>
   </button>
 </form>

@@ -6,15 +6,16 @@
     "hours": "Hours",
     "price": "Price",
     "any": "Any",
-    "hours0to1000": "0 – 1,000",
-    "hours1000to3000": "1,000 – 3,000",
-    "hours3000to6000": "3,000 – 6,000",
-    "hours6000Plus": "6,000+",
-    "priceUnder50k": "Under $50k",
-    "price50to150k": "$50k – $150k",
-    "price150to300k": "$150k – $300k",
-    "price300kPlus": "$300k+",
+    "chooseHoursRange": "Choose hours range",
+    "choosePriceRange": "Choose price range",
+    "min": "Min",
+    "max": "Max",
+    "over": "{value}+",
     "search": "Search",
-    "resultCount": "427"
+    "suggestedKeywords": "Suggested keywords",
+    "equipment": "Equipment",
+    "category": "Category",
+    "showMore": "Show more",
+    "noResults": "No results found"
   }
 }
