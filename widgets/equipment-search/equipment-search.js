@@ -5,7 +5,8 @@ const SUGGESTIONS_DEBOUNCE_MS = 150;
 const SUGGESTIONS_PREVIEW = 4;
 
 const HOURS_STEP = 500;
-const PRICE_STEP = 20000;
+const PRICE_STEP = 5000;
+const PRICE_CAP_USD = 200000;
 
 /**
  * Loads and caches the products index.
@@ -33,14 +34,47 @@ async function loadProducts() {
 }
 
 /**
- * Filters products by query, hours range, and price range.
+ * Loads rough FX rates (units of each currency per 1 USD).
+ * @returns {Promise<Object<string, number>>}
+ */
+async function loadCurrencyRates() {
+  const url = new URL('currencies.json', import.meta.url).href;
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) return { USD: 1 };
+    const json = await resp.json();
+    return json.rates || json;
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('failed to load currency rates', error);
+    return { USD: 1 };
+  }
+}
+
+/**
+ * Converts a listing price to USD using the widget rate table.
+ * @param {Object} item
+ * @param {Object<string, number>} rates
+ * @returns {number}
+ */
+function priceUsd(item, rates) {
+  const price = Number(item.price);
+  if (Number.isNaN(price) || price < 0) return NaN;
+  const currency = String(item.currency || 'USD').toUpperCase();
+  const rate = Number(rates[currency]);
+  const perUsd = Number.isNaN(rate) || rate <= 0 ? 1 : rate;
+  return price / perUsd;
+}
+
+/**
+ * Filters products by query, hours range, and USD price range.
  * @param {Array<Object>} products
  * @param {{ q: string, hoursMin: number|null, hoursMax: number|null,
- *   priceMin: number|null, priceMax: number|null }} filters
+ *   priceMin: number|null, priceMax: number|null, rates: Object<string, number> }} filters
  * @returns {Array<Object>}
  */
 function filterProducts(products, {
-  q, hoursMin, hoursMax, priceMin, priceMax,
+  q, hoursMin, hoursMax, priceMin, priceMax, rates,
 }) {
   const terms = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
 
@@ -54,7 +88,7 @@ function filterProducts(products, {
     const hours = Number(item.hours);
     if (hoursMin != null && (Number.isNaN(hours) || hours < hoursMin)) return false;
     if (hoursMax != null && (Number.isNaN(hours) || hours > hoursMax)) return false;
-    const price = Number(item.price);
+    const price = priceUsd(item, rates || { USD: 1 });
     if (priceMin != null && (Number.isNaN(price) || price < priceMin)) return false;
     if (priceMax != null && (Number.isNaN(price) || price > priceMax)) return false;
     return true;
@@ -472,9 +506,14 @@ function snapValue(value, domain, step) {
  * Slider/histogram domain: 0 to lastRegular, plus one over tick.
  * @param {number[]} values
  * @param {number} step
+ * @param {number} [cap]
  * @returns {{ min: number, max: number, lastRegular: number }}
  */
-function valueDomain(values, step) {
+function valueDomain(values, step, cap) {
+  if (cap != null) {
+    const lastRegular = Math.max(step, Math.round(cap / step) * step);
+    return { min: 0, max: lastRegular + step, lastRegular };
+  }
   const dataMax = values.length ? Math.max(...values) : 0;
   const lastRegular = Math.max(step, Math.floor(dataMax / step) * step);
   return { min: 0, max: lastRegular + step, lastRegular };
@@ -519,7 +558,7 @@ function buildHistogram(values, domain, step) {
  * @returns {{ getRange: () => { min: number|null, max: number|null }, updateHistogram: Function }}
  */
 function attachRangeFilter(field, {
-  products, copy, onChange, getValue, step, formatValue,
+  products, copy, onChange, getValue, step, formatValue, cap,
 }) {
   const trigger = field.querySelector('.range-trigger');
   const valueEl = field.querySelector('.range-trigger-value');
@@ -535,7 +574,7 @@ function attachRangeFilter(field, {
   }
 
   const format = formatValue || formatNumber;
-  const domain = valueDomain(numericValues(products, getValue), step);
+  const domain = valueDomain(numericValues(products, getValue), step, cap);
   let bins = buildHistogram(numericValues(products, getValue), domain, step);
   const selected = { min: domain.min, max: domain.max };
   const label = (value) => formatBound(value, format, domain, copy);
@@ -696,7 +735,11 @@ function attachRangeFilter(field, {
  * @param {Element} widget The widget element
  */
 export default async function decorate(widget) {
-  const copy = await loadCopy(import.meta.url);
+  const [copy, products, rates] = await Promise.all([
+    loadCopy(import.meta.url),
+    loadProducts(),
+    loadCurrencyRates(),
+  ]);
   hydrateCopy(widget, copy);
 
   const form = widget.querySelector('form');
@@ -704,13 +747,13 @@ export default async function decorate(widget) {
 
   const countEl = form.querySelector('.count');
   const input = form.querySelector('#equipment-query');
-  const products = await loadProducts();
   const hoursField = form.querySelector('.hours-field');
   const priceField = form.querySelector('.price-field');
   let hoursRange = { min: null, max: null };
   let priceRange = { min: null, max: null };
   let hoursControl;
   let priceControl;
+  const usdPrice = (item) => priceUsd(item, rates);
 
   const applyFilters = () => {
     const query = form.querySelector('#equipment-query')?.value || '';
@@ -720,6 +763,7 @@ export default async function decorate(widget) {
       hoursMax: null,
       priceMin: priceRange.min,
       priceMax: priceRange.max,
+      rates,
     }));
     priceControl?.updateHistogram(filterProducts(products, {
       q: query,
@@ -727,6 +771,7 @@ export default async function decorate(widget) {
       hoursMax: hoursRange.max,
       priceMin: null,
       priceMax: null,
+      rates,
     }));
     const matches = filterProducts(products, {
       q: query,
@@ -734,6 +779,7 @@ export default async function decorate(widget) {
       hoursMax: hoursRange.max,
       priceMin: priceRange.min,
       priceMax: priceRange.max,
+      rates,
     });
     if (countEl) countEl.textContent = String(matches.length);
     return matches;
@@ -759,7 +805,8 @@ export default async function decorate(widget) {
       products,
       copy,
       step: PRICE_STEP,
-      getValue: (item) => item.price,
+      cap: PRICE_CAP_USD,
+      getValue: usdPrice,
       formatValue: formatPrice,
       onChange: () => {
         priceRange = priceControl.getRange();
