@@ -657,14 +657,22 @@ function attachRangeFilter(field, {
 
   paintHistogram();
 
-  const openPanel = () => {
-    panel.hidden = false;
-    trigger.setAttribute('aria-expanded', 'true');
-  };
-
   const closePanel = () => {
     panel.hidden = true;
     trigger.setAttribute('aria-expanded', 'false');
+  };
+
+  const openPanel = () => {
+    const root = field.closest('form') || field.parentElement;
+    root?.querySelectorAll('.range-panel').forEach((other) => {
+      if (other === panel) return;
+      other.hidden = true;
+      other.closest('.field')
+        ?.querySelector('.range-trigger')
+        ?.setAttribute('aria-expanded', 'false');
+    });
+    panel.hidden = false;
+    trigger.setAttribute('aria-expanded', 'true');
   };
 
   trigger.addEventListener('click', () => {
@@ -715,15 +723,6 @@ function attachRangeFilter(field, {
       event.preventDefault();
       commitInput('max');
     }
-  });
-
-  document.addEventListener('click', (event) => {
-    if (field.contains(event.target)) return;
-    closePanel();
-  });
-
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && !panel.hidden) closePanel();
   });
 
   sync(false);
