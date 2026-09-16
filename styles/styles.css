@@ -374,14 +374,40 @@ main img {
   width: 24px;
 }
 
+li:has(> .icon:first-child) {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-inline-start: 0;
+  padding-inline-start: 0;
+  list-style: none;
+}
+
+ul:has(> li > .icon:first-child),
+ol:has(> li > .icon:first-child) {
+  margin-inline-start: 0;
+  padding-inline-start: 0;
+  list-style: none;
+}
+
 .icon img {
   height: 100%;
   width: 100%;
 }
 
+.icon.icon-used-certified-badge {
+  width: 200px;
+  height: 100px;
+  margin-left: -20px;
+}
+
 /* sections */
 main > .section {
   margin: var(--space-l) 0;
+}
+
+main > .section.left {
+  text-align: left;
 }
 
 main > .section > div {
