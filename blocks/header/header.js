@@ -4,6 +4,12 @@ import { loadFragment } from '../fragment/fragment.js';
 // media query match that indicates mobile/tablet width
 const isDesktop = window.matchMedia('(min-width: 900px)');
 
+const TOOL_LABELS = {
+  globe: 'Language',
+  person: 'Account',
+  grid: 'Apps',
+};
+
 function closeOnEscape(e) {
   if (e.code === 'Escape') {
     const nav = document.getElementById('nav');
@@ -109,6 +115,99 @@ function toggleMenu(nav, navSections, forceExpanded = null) {
 }
 
 /**
+ * Removes button classes that decorateButtons applied to nav fragment links.
+ * @param {Element} root
+ */
+function stripButtonStyles(root) {
+  root.querySelectorAll('a.button').forEach((link) => {
+    link.classList.remove('button', 'primary', 'secondary', 'accent');
+    const wrapper = link.closest('.button-wrapper');
+    if (wrapper) wrapper.classList.remove('button-wrapper');
+  });
+}
+
+/**
+ * Collapses wrapping paragraphs around the brand link.
+ * @param {Element} navBrand
+ */
+function decorateBrand(navBrand) {
+  if (!navBrand) return;
+  const link = navBrand.querySelector('a');
+  if (!link) return;
+  const container = navBrand.querySelector('.default-content-wrapper') || navBrand;
+  if (navBrand.textContent.trim() === link.textContent.trim()) {
+    container.replaceChildren(link);
+  }
+}
+
+/**
+ * Marks outbound links and appends an external-link icon.
+ * @param {Element} link
+ */
+function decorateExternalLink(link) {
+  let url;
+  try {
+    url = new URL(link.href, window.location.href);
+  } catch {
+    return;
+  }
+  if (url.origin === window.location.origin) return;
+  link.setAttribute('target', '_blank');
+  link.setAttribute('rel', 'noopener noreferrer');
+}
+
+/**
+ * Flattens section links, keeps dropdowns, and closes the mobile menu on navigate.
+ * @param {Element} nav
+ * @param {Element} navSections
+ */
+function decorateNavSections(nav, navSections) {
+  if (!navSections) return;
+  navSections.querySelectorAll(':scope .default-content-wrapper > ul > li').forEach((navSection) => {
+    if (navSection.querySelector(':scope > ul')) {
+      navSection.classList.add('nav-drop');
+      navSection.addEventListener('click', (e) => {
+        if (e.target.closest('a')) return;
+        if (isDesktop.matches) {
+          const expanded = navSection.getAttribute('aria-expanded') === 'true';
+          toggleAllNavSections(navSections);
+          navSection.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+        }
+      });
+      return;
+    }
+    const p = navSection.querySelector(':scope > p');
+    const link = p?.querySelector('a') || navSection.querySelector(':scope > a');
+    if (p && link) p.replaceWith(link);
+  });
+
+  navSections.querySelectorAll('a[href]').forEach((link) => {
+    decorateExternalLink(link);
+    link.addEventListener('click', () => {
+      if (!isDesktop.matches && nav.getAttribute('aria-expanded') === 'true') {
+        toggleMenu(nav, navSections, false);
+      }
+    });
+  });
+}
+
+/**
+ * Labels tool icons when authors omit link text.
+ * @param {Element} navTools
+ */
+function decorateTools(navTools) {
+  if (!navTools) return;
+  navTools.querySelectorAll('.icon').forEach((icon) => {
+    const iconName = [...icon.classList].find((cls) => cls.startsWith('icon-'))?.slice(5);
+    const label = TOOL_LABELS[iconName] || iconName;
+    if (!label) return;
+    const host = icon.closest('a') || icon.closest('p') || icon;
+    if (!host.getAttribute('aria-label')) host.setAttribute('aria-label', label);
+    if (host.tagName === 'P' && !host.querySelector('a')) host.setAttribute('role', 'img');
+  });
+}
+
+/**
  * loads and decorates the header, mainly the nav
  * @param {Element} block The header block element
  */
@@ -130,26 +229,12 @@ export default async function decorate(block) {
     if (section) section.classList.add(`nav-${c}`);
   });
 
-  const navBrand = nav.querySelector('.nav-brand');
-  const brandLink = navBrand.querySelector('.button');
-  if (brandLink) {
-    brandLink.className = '';
-    brandLink.closest('.button-container').className = '';
-  }
+  stripButtonStyles(nav);
+  decorateBrand(nav.querySelector('.nav-brand'));
 
   const navSections = nav.querySelector('.nav-sections');
-  if (navSections) {
-    navSections.querySelectorAll(':scope .default-content-wrapper > ul > li').forEach((navSection) => {
-      if (navSection.querySelector('ul')) navSection.classList.add('nav-drop');
-      navSection.addEventListener('click', () => {
-        if (isDesktop.matches) {
-          const expanded = navSection.getAttribute('aria-expanded') === 'true';
-          toggleAllNavSections(navSections);
-          navSection.setAttribute('aria-expanded', expanded ? 'false' : 'true');
-        }
-      });
-    });
-  }
+  decorateNavSections(nav, navSections);
+  decorateTools(nav.querySelector('.nav-tools'));
 
   // hamburger for mobile
   const hamburger = document.createElement('div');

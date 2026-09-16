@@ -1,0 +1,39 @@
+<form class="search-card" data-copy="formLabel" data-copy-target="aria-label" aria-label="Equipment search">
+  <div class="field grow">
+    <label for="equipment-query" data-copy="searchEquipment">Search equipment</label>
+    <input
+      id="equipment-query"
+      name="q"
+      type="text"
+      data-copy="searchPlaceholder"
+      data-copy-target="placeholder"
+      placeholder="Search by model or category"
+    >
+  </div>
+  <div class="search-filters">
+    <div class="field sel">
+      <label for="equipment-hours" data-copy="hours">Hours</label>
+      <select id="equipment-hours" name="hours">
+        <option value="" data-copy="any">Any</option>
+        <option value="0-1000" data-copy="hours0to1000">0 – 1,000</option>
+        <option value="1000-3000" data-copy="hours1000to3000">1,000 – 3,000</option>
+        <option value="3000-6000" data-copy="hours3000to6000">3,000 – 6,000</option>
+        <option value="6000+" data-copy="hours6000Plus">6,000+</option>
+      </select>
+    </div>
+    <div class="field sel">
+      <label for="equipment-price" data-copy="price">Price</label>
+      <select id="equipment-price" name="price">
+        <option value="" data-copy="any">Any</option>
+        <option value="under-50k" data-copy="priceUnder50k">Under $50k</option>
+        <option value="50k-150k" data-copy="price50to150k">$50k – $150k</option>
+        <option value="150k-300k" data-copy="price150to300k">$150k – $300k</option>
+        <option value="300k+" data-copy="price300kPlus">$300k+</option>
+      </select>
+    </div>
+  </div>
+  <button type="submit" class="button accent">
+    <span data-copy="search">Search</span>
+    <span class="count" data-copy="resultCount">427</span>
+  </button>
+</form>

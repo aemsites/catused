@@ -44,3 +44,10 @@ function onConsentUpdate() {
 }
 
 onConsentUpdate();
+
+/**
+ * Opens the cookie preference center when a CMP is present.
+ */
+export default async function openCookieSettings() {
+  window.OneTrust?.ToggleInfoDisplay?.();
+}

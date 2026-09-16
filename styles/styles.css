@@ -11,73 +11,156 @@
  */
 
 :root {
-  /* colors */
-  --background-color: white;
-  --light-color: #f8f8f8;
-  --dark-color: #505050;
-  --text-color: #131313;
-  --link-color: #3b63fb;
-  --link-hover-color: #1d3ecf;
+  /* color primitives — Caterpillar digital palette */
+  --color-black: #000;
+  --color-gray-1: #5c646d;
+  --color-gray-2: #7f8992;
+  --color-gray-3: #a1a9b1;
+  --color-gray-4: #c6c9ce;
+  --color-gray-5: #e3e5e9;
+  --color-white: #fff;
+  --color-red: #de2222;
+  --color-orange: #e56c00;
+  --color-yellow: #ffcd11;
+  --color-yellow-dark: #d4a900;
+  --color-green: #72bb71;
+  --color-teal: #078878;
+  --color-blue: #0078d6;
+  --color-blue-dark: #005a9e;
+  --color-blue-light: #5db1ff;
+  --color-purple: #9e90d5;
+
+  /* semantic color tokens */
+  --color-bg: var(--color-white);
+  --color-bg-light: var(--color-gray-5);
+  --color-bg-dark: var(--color-black);
+  --color-border: var(--color-gray-4);
+  --color-text: var(--color-black);
+  --color-muted: var(--color-gray-1);
+  --color-link: var(--color-blue);
+  --color-link-hover: var(--color-blue-dark);
+  --color-link-on-dark: var(--color-blue-light);
+  --color-error: var(--color-red);
+
+  /* brand */
+  --color-brand: var(--color-yellow);
+  --color-brand-dark: var(--color-yellow-dark);
+  --color-on-brand: var(--color-black);
+
+  /* shadows */
+  --shadow-default: 0 2px 14px rgb(0 0 0 / 10%);
+  --shadow-hover: 0 12px 26px rgb(0 0 0 / 14%);
+  --shadow-elevated: 0 12px 40px rgb(0 0 0 / 28%);
 
   /* fonts */
-  --body-font-family: roboto, roboto-fallback, sans-serif;
-  --heading-font-family: roboto-condensed, roboto-condensed-fallback, sans-serif;
+  --text-font-family: roboto, roboto-fallback, sans-serif;
+  --heading-font-family: univers-next-pro-condensed, univers-next-pro-condensed-fallback, sans-serif;
+  --display-font-family: univers-next-pro, univers-next-pro-fallback, sans-serif;
 
-  /* body sizes */
-  --body-font-size-m: 22px;
-  --body-font-size-s: 19px;
-  --body-font-size-xs: 17px;
+  /* heading sizes — mobile (Cat Used mock) */
+  --display-headline: 2.125rem; /* 34px */
+  --heading-xl: 1.5rem;         /* 24px */
+  --heading-l: 1.5rem;          /* 24px */
+  --heading-m: 1.125rem;        /* 18px */
+  --heading-s: 1rem;            /* 16px */
 
-  /* heading sizes */
-  --heading-font-size-xxl: 55px;
-  --heading-font-size-xl: 44px;
-  --heading-font-size-l: 34px;
-  --heading-font-size-m: 27px;
-  --heading-font-size-s: 24px;
-  --heading-font-size-xs: 22px;
+  /* text sizes */
+  --text-m: 1rem;               /* 16px */
+  --text-s: 0.875rem;           /* 14px */
+  --text-xs: 0.75rem;           /* 12px */
 
-  /* nav height */
+  /* line heights */
+  --lh-xs: 1.25;
+  --lh-s: 1.4;
+  --lh-m: 1.5;
+
+  /* tracking */
+  --tracking-tight: -0.03em;
+  --tracking-wide: 0.0125em;
+
+  /* spacing primitives */
+  --space-100: 4px;
+  --space-200: 8px;
+  --space-300: 12px;
+  --space-400: 16px;
+  --space-500: 24px;
+  --space-600: 32px;
+  --space-700: 48px;
+  --space-800: 64px;
+
+  /* spacing semantic */
+  --space-xs: var(--space-200);
+  --space-s: var(--space-400);
+  --space-m: var(--space-500);
+  --space-l: var(--space-600);
+  --space-xl: var(--space-800);
+  --space-gutter: 40px;
+
+  /* layout */
   --nav-height: 64px;
+  --site-width: 1280px;
+  --search-width: 920px;
+
+  /* border radii */
+  --radius-s: 6px;
+  --radius-m: 10px;
+  --radius-l: 12px;
+  --radius-pill: 20px;
+
+  /* aliases — existing blocks still use boilerplate names */
+  --background-color: var(--color-bg);
+  --light-color: var(--color-bg-light);
+  --dark-color: var(--color-muted);
+  --text-color: var(--color-text);
+  --link-color: var(--color-link);
+  --link-hover-color: var(--color-link-hover);
+  --body-font-family: var(--text-font-family);
+  --body-font-size-m: var(--text-m);
+  --body-font-size-s: var(--text-s);
+  --body-font-size-xs: var(--text-xs);
+  --heading-font-size-xxl: var(--display-headline);
+  --heading-font-size-xl: var(--heading-xl);
+  --heading-font-size-l: var(--heading-l);
+  --heading-font-size-m: var(--heading-m);
+  --heading-font-size-s: var(--heading-s);
+  --heading-font-size-xs: var(--heading-s);
+}
+
+@media (width >= 900px) {
+  :root {
+    --display-headline: 2.875rem; /* 46px */
+    --heading-xl: 1.875rem;       /* 30px */
+    --heading-l: 1.75rem;         /* 28px */
+  }
 }
 
 /* fallback fonts */
-@font-face {
-  font-family: roboto-condensed-fallback;
-  size-adjust: 88.82%;
-  src: local('Arial');
-}
-
 @font-face {
   font-family: roboto-fallback;
   size-adjust: 99.529%;
   src: local('Arial');
 }
 
-@media (width >= 900px) {
-  :root {
-    /* body sizes */
-    --body-font-size-m: 18px;
-    --body-font-size-s: 16px;
-    --body-font-size-xs: 14px;
+@font-face {
+  font-family: univers-next-pro-fallback;
+  size-adjust: 97%;
+  src: local('Arial');
+}
 
-    /* heading sizes */
-    --heading-font-size-xxl: 45px;
-    --heading-font-size-xl: 36px;
-    --heading-font-size-l: 28px;
-    --heading-font-size-m: 22px;
-    --heading-font-size-s: 20px;
-    --heading-font-size-xs: 18px;
-  }
+@font-face {
+  font-family: univers-next-pro-condensed-fallback;
+  size-adjust: 97.19%;
+  src: local('Arial');
 }
 
 body {
   display: none;
   margin: 0;
-  background-color: var(--background-color);
-  color: var(--text-color);
-  font-family: var(--body-font-family);
-  font-size: var(--body-font-size-m);
-  line-height: 1.6;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--text-font-family);
+  font-size: var(--text-m);
+  line-height: var(--lh-m);
 }
 
 body.appear {
@@ -107,17 +190,17 @@ h6 {
   margin-top: 0.8em;
   margin-bottom: 0.25em;
   font-family: var(--heading-font-family);
-  font-weight: 600;
-  line-height: 1.25;
+  font-weight: 700;
+  line-height: var(--lh-xs);
   scroll-margin: 40px;
 }
 
-h1 { font-size: var(--heading-font-size-xxl); }
-h2 { font-size: var(--heading-font-size-xl); }
-h3 { font-size: var(--heading-font-size-l); }
-h4 { font-size: var(--heading-font-size-m); }
-h5 { font-size: var(--heading-font-size-s); }
-h6 { font-size: var(--heading-font-size-xs); }
+h1 { font-size: var(--display-headline); }
+h2 { font-size: var(--heading-xl); }
+h3 { font-size: var(--heading-l); }
+h4 { font-size: var(--heading-m); }
+h5 { font-size: var(--heading-s); }
+h6 { font-size: var(--heading-s); }
 
 p,
 dl,
@@ -131,19 +214,20 @@ blockquote {
 
 code,
 pre {
-  font-size: var(--body-font-size-s);
+  font-size: var(--text-s);
 }
 
 pre {
-  padding: 16px;
-  border-radius: 8px;
-  background-color: var(--light-color);
+  padding: var(--space-s);
+  border-radius: var(--radius-s);
+  background-color: var(--color-bg-light);
   overflow-x: auto;
   white-space: pre;
 }
 
 main > div {
-  margin: 40px 16px;
+  margin: var(--space-l) var(--space-s);
+  text-align: center;
 }
 
 input,
@@ -155,13 +239,13 @@ button {
 
 /* links */
 a:any-link {
-  color: var(--link-color);
+  color: var(--color-link);
   text-decoration: none;
   overflow-wrap: break-word;
 }
 
 a:hover {
-  color: var(--link-hover-color);
+  color: var(--color-link-hover);
   text-decoration: underline;
 }
 
@@ -179,11 +263,11 @@ button.button {
   max-width: 100%;
   margin: 0;
   border: 2px solid transparent;
-  border-radius: 2.4em;
+  border-radius: var(--radius-s);
   padding: 0.5em 1.2em;
   font: inherit;
-  font-weight: 500;
-  line-height: 1.25;
+  font-weight: 700;
+  line-height: var(--lh-xs);
   text-decoration: none;
   cursor: pointer;
   overflow: hidden;
@@ -199,18 +283,18 @@ button.button:disabled {
 
 a.button.primary,
 button.button.primary {
-  border-color: var(--text-color);
-  background-color: var(--text-color);
-  color: var(--background-color);
+  border-color: var(--color-text);
+  background-color: var(--color-text);
+  color: var(--color-bg);
 }
 
 a.button.primary:hover,
 a.button.primary:focus-visible,
 button.button.primary:hover,
 button.button.primary:focus-visible {
-  border-color: var(--dark-color);
-  background-color: var(--dark-color);
-  color: var(--light-color);
+  border-color: var(--color-muted);
+  background-color: var(--color-muted);
+  color: var(--color-bg-light);
 }
 
 a.button.primary[aria-disabled="true"],
@@ -219,25 +303,25 @@ a.button.primary[aria-disabled="true"]:focus-visible,
 button.button.primary:disabled,
 button.button.primary:disabled:hover,
 button.button.primary:disabled:focus-visible {
-  background-color: var(--light-color);
-  border-color: var(--light-color);
-  color: var(--dark-color);
+  background-color: var(--color-bg-light);
+  border-color: var(--color-bg-light);
+  color: var(--color-muted);
 }
 
 a.button.secondary,
 button.button.secondary {
-  border-color: var(--text-color);
+  border-color: var(--color-text);
   background-color: transparent;
-  color: var(--text-color);
+  color: var(--color-text);
 }
 
 a.button.secondary:hover,
 a.button.secondary:focus-visible,
 button.button.secondary:hover,
 button.button.secondary:focus-visible {
-  border-color: var(--dark-color);
-  background-color: var(--light-color);
-  color: var(--dark-color);
+  border-color: var(--color-muted);
+  background-color: var(--color-bg-light);
+  color: var(--color-muted);
 }
 
 a.button.secondary[aria-disabled="true"],
@@ -246,25 +330,25 @@ a.button.secondary[aria-disabled="true"]:focus-visible,
 button.button.secondary:disabled,
 button.button.secondary:disabled:hover,
 button.button.secondary:disabled:focus-visible {
-  background-color: var(--light-color);
-  border-color: var(--light-color);
-  color: var(--dark-color);
+  background-color: var(--color-bg-light);
+  border-color: var(--color-bg-light);
+  color: var(--color-muted);
 }
 
 /* high-impact call-to-action */
 a.button.accent,
 button.button.accent {
-  border-color: var(--link-color);
-  background-color: var(--link-color);
-  color: var(--background-color);
+  border-color: var(--color-brand);
+  background-color: var(--color-brand);
+  color: var(--color-on-brand);
 }
 
 a.button.accent:hover,
 a.button.accent:focus-visible,
 button.button.accent:hover,
 button.button.accent:focus-visible {
-  border-color: var(--link-hover-color);
-  background-color: var(--link-hover-color);
+  border-color: var(--color-brand-dark);
+  background-color: var(--color-brand-dark);
 }
 
 a.button.accent[aria-disabled="true"],
@@ -273,9 +357,9 @@ a.button.accent[aria-disabled="true"]:focus-visible,
 button.button.accent:disabled,
 button.button.accent:disabled:hover,
 button.button.accent:disabled:focus-visible {
-  background-color: var(--light-color);
-  border-color: var(--light-color);
-  color: var(--dark-color);
+  background-color: var(--color-bg-light);
+  border-color: var(--color-bg-light);
+  color: var(--color-muted);
 }
 
 main img {
@@ -297,13 +381,13 @@ main img {
 
 /* sections */
 main > .section {
-  margin: 40px 0;
+  margin: var(--space-l) 0;
 }
 
 main > .section > div {
-  max-width: 1200px;
+  max-width: var(--site-width);
   margin: auto;
-  padding: 0 24px;
+  padding: 0 var(--space-m);
 }
 
 main > .section:first-of-type {
@@ -312,14 +396,60 @@ main > .section:first-of-type {
 
 @media (width >= 900px) {
   main > .section > div {
-    padding: 0 32px;
+    padding: 0 var(--space-gutter);
   }
 }
 
 /* section metadata */
 main .section.light,
-main .section.highlight {
-  background-color: var(--light-color);
+main .section.highlight,
+main .section.dark {
   margin: 0;
-  padding: 40px 0;
+  padding: var(--space-l) 0;
+}
+
+main .section.light,
+main .section.highlight {
+  background-color: var(--color-bg-light);
+}
+
+main .section.dark {
+  --color-bg: var(--color-black);
+  --color-bg-light: var(--color-gray-1);
+  --color-border: var(--color-gray-1);
+  --color-text: var(--color-white);
+  --color-muted: var(--color-gray-3);
+  --color-link: var(--color-link-on-dark);
+  --color-link-hover: var(--color-white);
+  --background-color: var(--color-bg);
+  --light-color: var(--color-bg-light);
+  --dark-color: var(--color-muted);
+  --text-color: var(--color-text);
+  --link-color: var(--color-link);
+  --link-hover-color: var(--color-link-hover);
+
+  background-color: var(--color-bg);
+  color: var(--color-text);
+}
+
+main .section[data-background] {
+  position: relative;
+}
+
+main .section[data-background] > picture.section-background-image {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+main .section[data-background] > picture.section-background-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+main .section[data-background] > div {
+  position: relative;
+  z-index: 1;
 }

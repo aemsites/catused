@@ -38,6 +38,50 @@ if (window.trustedTypes && window.trustedTypes.createPolicy) {
 }
 
 /**
+ * Returns the two-letter language code for the current page.
+ * @returns {string}
+ */
+export function getLocale() {
+  const segment = window.location.pathname.split('/').filter(Boolean)[0];
+  const lang = (segment && /^[a-z]{2}(-[a-z]{2})?$/i.test(segment)) ? segment : 'en';
+  return lang.split('-')[0].toLowerCase();
+}
+
+/**
+ * Fetches localized UI strings from a folder's companion JSON file.
+ * @param {string} scriptUrl - The module's `import.meta.url`
+ * @returns {Promise<Object>}
+ */
+export async function loadCopy(scriptUrl) {
+  const jsonPath = new URL(scriptUrl).pathname.replace(/\.js$/, '.json');
+  const url = `${(window.hlx && window.hlx.codeBasePath) || ''}${jsonPath}`;
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) return {};
+    const data = await resp.json();
+    return data[getLocale()] || data.en || {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Hydrates all `[data-copy]` elements within a container from a widget copy object.
+ * @param {HTMLElement} container - Root element to search within
+ * @param {Object} copy - Widget copy for the current language
+ */
+export function hydrateCopy(container, copy) {
+  container.querySelectorAll('[data-copy]').forEach((el) => {
+    const value = copy[el.dataset.copy];
+    if (!value) return;
+    const target = el.dataset.copyTarget;
+    if (target) {
+      target.split(',').forEach((attr) => el.setAttribute(attr.trim(), value));
+    } else el.textContent = value;
+  });
+}
+
+/**
  * load fonts.css and set a session storage flag
  */
 async function loadFonts() {
@@ -143,6 +187,53 @@ function decorateButtons(main) {
 }
 
 /**
+ * Turns authored `data-background` URLs into optimized section background images.
+ * @param {Element} main The main element
+ */
+function decorateSectionBackgrounds(main) {
+  main.querySelectorAll('.section[data-background]').forEach((section) => {
+    const { background } = section.dataset;
+    if (!background) return;
+    try {
+      const { pathname } = new URL(background, window.location.href);
+      if (pathname.endsWith('.mp4')) return;
+      const ext = pathname.split('.').pop();
+      const breakpoints = [
+        { media: '(min-width: 900px)', width: '2880' },
+        { width: '1600' },
+      ];
+      const picture = document.createElement('picture');
+      breakpoints.forEach((br) => {
+        const source = document.createElement('source');
+        if (br.media) source.media = br.media;
+        source.type = 'image/webp';
+        source.srcset = `${pathname}?width=${br.width}&format=webply&optimize=medium`;
+        picture.append(source);
+      });
+      breakpoints.forEach((br, i) => {
+        if (i < breakpoints.length - 1) {
+          const source = document.createElement('source');
+          if (br.media) source.media = br.media;
+          source.srcset = `${pathname}?width=${br.width}&format=${ext}&optimize=medium`;
+          picture.append(source);
+          return;
+        }
+        const img = document.createElement('img');
+        img.loading = 'lazy';
+        img.alt = '';
+        img.src = `${pathname}?width=${br.width}&format=${ext}&optimize=medium`;
+        picture.append(img);
+      });
+      picture.classList.add('section-background-image');
+      picture.setAttribute('aria-hidden', 'true');
+      section.prepend(picture);
+    } catch {
+      // ignore invalid urls
+    }
+  });
+}
+
+/**
  * Decorates the main element.
  * @param {Element} main The main element
  */
@@ -151,6 +242,7 @@ export function decorateMain(main) {
   decorateIcons(main);
   buildAutoBlocks(main);
   decorateSections(main);
+  decorateSectionBackgrounds(main);
   decorateBlocks(main);
   decorateButtons(main);
 }

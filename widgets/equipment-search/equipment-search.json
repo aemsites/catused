@@ -1,0 +1,20 @@
+{
+  "en": {
+    "formLabel": "Equipment search",
+    "searchEquipment": "Search equipment",
+    "searchPlaceholder": "Search by model or category",
+    "hours": "Hours",
+    "price": "Price",
+    "any": "Any",
+    "hours0to1000": "0 – 1,000",
+    "hours1000to3000": "1,000 – 3,000",
+    "hours3000to6000": "3,000 – 6,000",
+    "hours6000Plus": "6,000+",
+    "priceUnder50k": "Under $50k",
+    "price50to150k": "$50k – $150k",
+    "price150to300k": "$150k – $300k",
+    "price300kPlus": "$300k+",
+    "search": "Search",
+    "resultCount": "427"
+  }
+}
