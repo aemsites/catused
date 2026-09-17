@@ -52,15 +52,26 @@
       </div>
     </div>
 
-    <div class="acc open">
+    <div class="acc open year-field">
       <button type="button" class="acc-head" data-copy="year">Year</button>
       <div class="acc-body">
-        <div class="minmax">
-          <label class="vh" for="plp-year-min" data-copy="min">Min</label>
-          <select class="facet" id="plp-year-min" name="yearMin"></select>
-          <span class="to" data-copy="to">to</span>
-          <label class="vh" for="plp-year-max" data-copy="max">Max</label>
-          <select class="facet" id="plp-year-max" name="yearMax"></select>
+        <div class="range-panel" id="year-panel">
+          <div class="range-histogram" aria-hidden="true"></div>
+          <div class="range-slider">
+            <div class="range-rail" aria-hidden="true"><span class="range-rail-active"></span></div>
+            <input type="range" class="range-thumb range-thumb-min" aria-label="Minimum year">
+            <input type="range" class="range-thumb range-thumb-max" aria-label="Maximum year">
+          </div>
+          <div class="range-fields">
+            <label class="range-field">
+              <input type="text" inputmode="numeric" class="range-min-input" autocomplete="off">
+              <span data-copy="min">Min</span>
+            </label>
+            <label class="range-field">
+              <input type="text" inputmode="numeric" class="range-max-input" autocomplete="off">
+              <span data-copy="max">Max</span>
+            </label>
+          </div>
         </div>
       </div>
     </div>
@@ -108,6 +119,8 @@
           type="text"
           data-copy="searchPlaceholder"
           data-copy-target="placeholder"
+          autocomplete="off"
+          aria-autocomplete="list"
           placeholder="Search by model or category"
         >
         <button type="button" class="clr" data-copy="clearSearch" data-copy-target="aria-label" aria-label="Clear search"></button>
@@ -136,6 +149,7 @@
       </div>
     </form>
     <div class="grid" id="plp-grid"></div>
+    <nav class="pager" hidden data-copy="pagination" data-copy-target="aria-label" aria-label="Pagination"></nav>
     <p class="empty" hidden data-copy="noResults">No results found</p>
   </div>
 </div>

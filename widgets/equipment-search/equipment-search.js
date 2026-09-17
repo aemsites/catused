@@ -10,10 +10,13 @@ import {
   formatPrice,
   loadCurrencyRates,
   loadProducts,
+  subscribeProducts,
+  plpSearchUrl,
   priceUsd,
 } from '../../scripts/product-index.js';
 import attachRangeFilter from '../../scripts/range-filter.js';
 import attachSuggestions from '../../scripts/suggestions.js';
+import { setOdometer } from '../../scripts/odometer.js';
 
 /**
  * Decorates the equipment search form widget.
@@ -43,31 +46,26 @@ export default async function decorate(widget) {
 
   const applyFilters = () => {
     const query = form.querySelector('#equipment-query')?.value || '';
-    hoursControl?.updateHistogram(filterProducts(products, {
+    const shared = {
       q: query,
+      hoursMin: hoursRange.min,
+      hoursMax: hoursRange.max,
+      priceMin: priceRange.min,
+      priceMax: priceRange.max,
+      rates,
+    };
+    hoursControl?.updateHistogram(filterProducts(products, {
+      ...shared,
       hoursMin: null,
       hoursMax: null,
-      priceMin: priceRange.min,
-      priceMax: priceRange.max,
-      rates,
     }));
     priceControl?.updateHistogram(filterProducts(products, {
-      q: query,
-      hoursMin: hoursRange.min,
-      hoursMax: hoursRange.max,
+      ...shared,
       priceMin: null,
       priceMax: null,
-      rates,
     }));
-    const matches = filterProducts(products, {
-      q: query,
-      hoursMin: hoursRange.min,
-      hoursMax: hoursRange.max,
-      priceMin: priceRange.min,
-      priceMax: priceRange.max,
-      rates,
-    });
-    if (countEl) countEl.textContent = String(matches.length);
+    const matches = filterProducts(products, shared);
+    setOdometer(countEl, matches.length, { format: formatNumber });
     return matches;
   };
 
@@ -107,7 +105,13 @@ export default async function decorate(widget) {
   form.addEventListener('change', applyFilters);
   form.addEventListener('submit', (event) => {
     event.preventDefault();
-    applyFilters();
+    window.location.assign(plpSearchUrl('/used-equipment', {
+      q: input?.value || '',
+      hoursMin: hoursRange.min,
+      hoursMax: hoursRange.max,
+      priceMin: priceRange.min,
+      priceMax: priceRange.max,
+    }));
   });
 
   if (input) {
@@ -119,4 +123,5 @@ export default async function decorate(widget) {
   }
 
   applyFilters();
+  subscribeProducts(applyFilters);
 }

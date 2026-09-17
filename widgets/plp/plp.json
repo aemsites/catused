@@ -38,6 +38,10 @@
     "suggestedKeywords": "Suggested keywords",
     "equipment": "Equipment",
     "showMore": "Show more",
-    "noResults": "No results found"
+    "noResults": "No results found",
+    "pagination": "Pagination",
+    "previous": "Previous",
+    "next": "Next",
+    "pageStatus": "Page {page} of {pages}"
   }
 }

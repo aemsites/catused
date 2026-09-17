@@ -247,6 +247,8 @@
 }
 
 .plp .search-panel {
+  position: relative;
+  z-index: 6;
   padding: 18px;
   border-radius: var(--radius-l);
   background-color: var(--color-bg-light);
@@ -255,10 +257,16 @@
 .plp .search-row {
   display: flex;
   align-items: stretch;
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid var(--color-gray-4);
   border-radius: 8px;
   background-color: var(--color-white);
+}
+
+.plp .search-row .clr {
+  flex: 0 0 32px;
+  align-self: center;
+  margin: 0 6px 0 0;
 }
 
 .plp .search-row input {
@@ -386,9 +394,13 @@
 }
 
 .plp .media img {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
+  max-width: none;
   object-fit: cover;
+  object-position: center;
 }
 
 .plp .yr {
@@ -454,6 +466,12 @@
   font-weight: 800;
 }
 
+.plp mark {
+  padding: 0 1px;
+  background-color: var(--color-brand);
+  color: var(--color-on-brand);
+}
+
 .plp .loc-row {
   display: flex;
   flex-wrap: wrap;
@@ -512,6 +530,62 @@
 
 .plp .empty[hidden] {
   display: none;
+}
+
+.plp .pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 28px;
+}
+
+.plp .pager[hidden] {
+  display: none;
+}
+
+.plp .pager button {
+  min-width: 40px;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-s);
+  background-color: var(--color-white);
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.plp .pager button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.plp .pager button:focus-visible {
+  border-color: var(--color-brand-dark);
+  outline: none;
+}
+
+.plp .pager button:hover:not(:disabled) {
+  border-color: var(--color-brand-dark);
+}
+
+.plp .pager button[aria-current='page'] {
+  border-color: var(--color-brand);
+  background-color: var(--color-brand);
+  color: var(--color-on-brand);
+}
+
+.plp .pager .gap,
+.plp .pager .status {
+  color: var(--color-muted);
+  font-size: 14px;
+}
+
+.plp .pager .status {
+  margin-left: auto;
 }
 
 .plp .scrim {

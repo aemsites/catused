@@ -173,14 +173,14 @@
 
 .suggestions-anchor {
   position: relative;
-  z-index: 4;
+  z-index: 6;
 }
 
 .suggestions {
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
-  z-index: 4;
+  z-index: 6;
   box-sizing: border-box;
   min-width: 100%;
   width: max(100%, 22rem);
@@ -277,4 +277,58 @@
   margin: 0;
   padding: 16px 18px;
   color: var(--color-muted);
+}
+
+.odometer-host {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3em;
+  white-space: nowrap;
+}
+
+.odometer {
+  display: inline-flex;
+  overflow: hidden;
+  height: 1em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  vertical-align: -0.1em;
+}
+
+.odometer-digit {
+  display: inline-block;
+  width: 1ch;
+  height: 1em;
+  overflow: hidden;
+}
+
+.odometer-strip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: translateY(0);
+  transition: transform 0.75s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.odometer-tick {
+  display: block;
+  height: 1em;
+  line-height: 1;
+}
+
+.odometer-sep {
+  display: inline-block;
+  padding-inline: 0.04em;
+  line-height: 1;
+}
+
+.odometer-prefix[hidden],
+.odometer-suffix[hidden] {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .odometer-strip {
+    transition: none;
+  }
 }

@@ -3,32 +3,103 @@ import { fetchJson } from './scripts.js';
 export const PRODUCTS_INDEX = 'https://main--catused--aemsites.aem.network/products/index.json';
 export const HOURS_STEP = 500;
 export const HOURS_CAP = 10000;
-export const PRICE_STEP = 5000;
-export const PRICE_CAP_USD = 200000;
+export const PRICE_STEP = 10000;
+export const PRICE_CAP_USD = 400000;
+export const YEAR_STEP = 1;
+export const YEAR_MIN = 2000;
+export const YEAR_MAX = 2026;
+const INDEX_PAGE_SIZE = 1000;
+const productListeners = new Set();
+let firstPagePromise;
 
 /**
- * Loads and caches the products index.
+ * Whether a product has a usable image URL.
+ * @param {Object} item
+ * @returns {boolean}
+ */
+export function hasProductImage(item) {
+  const src = String(item?.image || '').trim();
+  return src.startsWith('http') || src.startsWith('/') || src.startsWith('.');
+}
+
+/**
+ * Subscribe to product-index updates as pages arrive.
+ * @param {Function} listener
+ * @returns {Function} unsubscribe
+ */
+export function subscribeProducts(listener) {
+  productListeners.add(listener);
+  return () => productListeners.delete(listener);
+}
+
+/**
+ * @param {number} offset
+ * @returns {string}
+ */
+function indexPageUrl(offset) {
+  const url = new URL(PRODUCTS_INDEX);
+  url.searchParams.set('limit', String(INDEX_PAGE_SIZE));
+  url.searchParams.set('offset', String(offset));
+  return url.href;
+}
+
+/**
+ * @param {Array<Object>} items
+ */
+function sortByImage(items) {
+  items.sort((a, b) => Number(hasProductImage(b)) - Number(hasProductImage(a)));
+}
+
+function notifyProductListeners() {
+  productListeners.forEach((listener) => listener(window.productIndex));
+}
+
+/**
+ * Loads the products index in pages of 1000. Resolves after the first page so
+ * widgets can render, then keeps appending in the background.
  * @returns {Promise<Array<Object>>}
  */
 export async function loadProducts() {
-  window.productIndex = window.productIndex || null;
-  if (window.productIndex) return window.productIndex;
+  if (!Array.isArray(window.productIndex)) window.productIndex = [];
+  if (window.productIndexComplete) return window.productIndex;
+
   if (!window.productIndexPromise) {
+    let firstPageDone;
+    firstPagePromise = new Promise((resolve) => {
+      firstPageDone = resolve;
+    });
+
     window.productIndexPromise = (async () => {
       try {
-        const json = await fetchJson(PRODUCTS_INDEX);
-        const data = Array.isArray(json.data) ? json.data : [];
-        window.productIndex = data;
-        return data;
+        let offset = 0;
+        let total = Infinity;
+        while (offset < total) {
+          // Sequential pages so the UI can update after each chunk.
+          // eslint-disable-next-line no-await-in-loop
+          const json = await fetchJson(indexPageUrl(offset));
+          const chunk = Array.isArray(json.data) ? json.data : [];
+          const reported = Number(json.total);
+          if (Number.isFinite(reported) && reported >= 0) total = reported;
+          window.productIndex.push(...chunk);
+          sortByImage(window.productIndex);
+          notifyProductListeners();
+          firstPageDone();
+          if (!chunk.length || chunk.length < INDEX_PAGE_SIZE) break;
+          offset += INDEX_PAGE_SIZE;
+        }
       } catch (error) {
         // eslint-disable-next-line no-console
         console.error('failed to load products index', error);
-        window.productIndex = [];
-        return [];
       }
+      window.productIndexComplete = true;
+      notifyProductListeners();
+      firstPageDone();
+      return window.productIndex;
     })();
   }
-  return window.productIndexPromise;
+
+  await firstPagePromise;
+  return window.productIndex;
 }
 
 /**
@@ -168,6 +239,15 @@ export function formatPrice(value) {
 }
 
 /**
+ * Formats a year without grouping separators.
+ * @param {number} value
+ * @returns {string}
+ */
+export function formatYear(value) {
+  return String(Math.round(value));
+}
+
+/**
  * Parses a typed numeric value.
  * @param {string} raw
  * @returns {number}
@@ -185,7 +265,7 @@ export function parseNumber(raw) {
  * @returns {string}
  */
 export function formatBound(value, format, domain, copy) {
-  if (value >= domain.max) {
+  if (domain.over !== false && value >= domain.max) {
     const template = copy.over || '{value}+';
     return template.replace('{value}', format(domain.lastRegular));
   }
@@ -216,4 +296,79 @@ export function formatCountry(code) {
   } catch {
     return value;
   }
+}
+
+export const PLP_PARAM_KEYS = [
+  'q', 'category', 'brand', 'country', 'sort', 'page',
+  'hoursMin', 'hoursMax', 'priceMin', 'priceMax', 'yearMin', 'yearMax',
+];
+
+/**
+ * @param {string|null|undefined} raw
+ * @returns {number|null}
+ */
+function toNumberParam(raw) {
+  if (raw == null || raw === '') return null;
+  const value = Number(raw);
+  return Number.isNaN(value) ? null : value;
+}
+
+/**
+ * Reads PLP filters from a query string.
+ * @param {string} [search]
+ * @returns {Object}
+ */
+export function readPlpParams(search = window.location.search) {
+  const params = new URLSearchParams(search);
+  return {
+    q: params.get('q') || '',
+    category: params.get('category') || '',
+    brand: params.get('brand') || '',
+    country: params.get('country') || '',
+    sort: params.get('sort') || 'relevance',
+    page: Math.max(1, toNumberParam(params.get('page')) || 1),
+    hoursMin: toNumberParam(params.get('hoursMin')),
+    hoursMax: toNumberParam(params.get('hoursMax')),
+    priceMin: toNumberParam(params.get('priceMin')),
+    priceMax: toNumberParam(params.get('priceMax')),
+    yearMin: toNumberParam(params.get('yearMin')),
+    yearMax: toNumberParam(params.get('yearMax')),
+  };
+}
+
+/**
+ * Writes PLP filter keys onto a URLSearchParams instance.
+ * @param {URLSearchParams} params
+ * @param {Object} state
+ * @returns {URLSearchParams}
+ */
+export function applyPlpParams(params, state) {
+  PLP_PARAM_KEYS.forEach((key) => params.delete(key));
+  const set = (key, value) => {
+    if (value != null && value !== '') params.set(key, String(value));
+  };
+  set('q', state.q);
+  set('category', state.category);
+  set('brand', state.brand);
+  set('country', state.country);
+  if (state.sort && state.sort !== 'relevance') set('sort', state.sort);
+  if (state.page > 1) set('page', state.page);
+  set('hoursMin', state.hoursMin);
+  set('hoursMax', state.hoursMax);
+  set('priceMin', state.priceMin);
+  set('priceMax', state.priceMax);
+  set('yearMin', state.yearMin);
+  set('yearMax', state.yearMax);
+  return params;
+}
+
+/**
+ * Builds a PLP URL from filter state.
+ * @param {string} pathname
+ * @param {Object} state
+ * @returns {string}
+ */
+export function plpSearchUrl(pathname, state) {
+  const query = applyPlpParams(new URLSearchParams(), state).toString();
+  return `${pathname}${query ? `?${query}` : ''}`;
 }

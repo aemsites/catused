@@ -142,12 +142,16 @@
 }
 
 .equipment-search .count {
+  display: inline-flex;
+  align-items: center;
+  overflow: hidden;
   border-radius: var(--radius-pill);
   padding: 2px 9px;
   background-color: var(--color-black);
   color: var(--color-white);
-  font-size: var(--text-xs);
+  font-size: 13px;
   font-weight: 700;
+  line-height: 1;
 }
 
 @media (width < 900px) {

@@ -5,76 +5,35 @@ import {
   HOURS_STEP,
   PRICE_CAP_USD,
   PRICE_STEP,
+  YEAR_MAX,
+  YEAR_MIN,
+  YEAR_STEP,
   filterProducts,
   formatCountry,
   formatNumber,
   formatPrice,
+  formatYear,
   loadCurrencyRates,
   loadProducts,
+  subscribeProducts,
   priceUsd,
+  readPlpParams,
+  applyPlpParams,
   sortProducts,
   uniqueValues,
 } from '../../scripts/product-index.js';
 import attachRangeFilter from '../../scripts/range-filter.js';
-import attachSuggestions from '../../scripts/suggestions.js';
+import attachSuggestions, { highlightTerms } from '../../scripts/suggestions.js';
+import { setOdometerLabel } from '../../scripts/odometer.js';
 
-const PARAM_KEYS = [
-  'q', 'category', 'brand', 'country', 'sort',
-  'hoursMin', 'hoursMax', 'priceMin', 'priceMax', 'yearMin', 'yearMax',
-];
-
-/**
- * @param {string} raw
- * @returns {number|null}
- */
-function toNumber(raw) {
-  if (raw == null || raw === '') return null;
-  const value = Number(raw);
-  return Number.isNaN(value) ? null : value;
-}
-
-/**
- * Reads PLP filters from the page query string.
- * @returns {Object}
- */
-function readParams() {
-  const params = new URLSearchParams(window.location.search);
-  return {
-    q: params.get('q') || '',
-    category: params.get('category') || '',
-    brand: params.get('brand') || '',
-    country: params.get('country') || '',
-    sort: params.get('sort') || 'relevance',
-    hoursMin: toNumber(params.get('hoursMin')),
-    hoursMax: toNumber(params.get('hoursMax')),
-    priceMin: toNumber(params.get('priceMin')),
-    priceMax: toNumber(params.get('priceMax')),
-    yearMin: toNumber(params.get('yearMin')),
-    yearMax: toNumber(params.get('yearMax')),
-  };
-}
+const PAGE_SIZE = 50;
 
 /**
  * Writes PLP filters to the page query string.
  * @param {Object} state
  */
 function writeParams(state) {
-  const params = new URLSearchParams(window.location.search);
-  PARAM_KEYS.forEach((key) => params.delete(key));
-  const set = (key, value) => {
-    if (value != null && value !== '') params.set(key, String(value));
-  };
-  set('q', state.q);
-  set('category', state.category);
-  set('brand', state.brand);
-  set('country', state.country);
-  if (state.sort && state.sort !== 'relevance') set('sort', state.sort);
-  set('hoursMin', state.hoursMin);
-  set('hoursMax', state.hoursMax);
-  set('priceMin', state.priceMin);
-  set('priceMax', state.priceMax);
-  set('yearMin', state.yearMin);
-  set('yearMax', state.yearMax);
+  const params = applyPlpParams(new URLSearchParams(window.location.search), state);
   const query = params.toString();
   const url = `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`;
   window.history.replaceState({}, '', url);
@@ -115,12 +74,35 @@ function productHref(url) {
 }
 
 /**
- * @param {Object} copy
- * @param {number} count
- * @returns {string}
+ * @param {HTMLElement} el
+ * @param {string} text
+ * @param {string[]} terms
  */
-function resultsLabel(copy, count) {
-  return (copy.results || '{count} results').replace('{count}', formatNumber(count));
+function setHighlightedText(el, text, terms) {
+  const value = text || '';
+  if (!terms.length) {
+    el.textContent = value;
+    return;
+  }
+  el.innerHTML = highlightTerms(value, terms);
+}
+
+/**
+ * Compact page list with gaps as 0.
+ * @param {number} current
+ * @param {number} pages
+ * @returns {number[]}
+ */
+function pageItems(current, pages) {
+  if (pages <= 7) return Array.from({ length: pages }, (_, i) => i + 1);
+  const marks = new Set([1, pages, current - 1, current, current + 1]);
+  const list = [...marks].filter((n) => n >= 1 && n <= pages).sort((a, b) => a - b);
+  const out = [];
+  list.forEach((n, i) => {
+    if (i && n - list[i - 1] > 1) out.push(0);
+    out.push(n);
+  });
+  return out;
 }
 
 /**
@@ -128,9 +110,10 @@ function resultsLabel(copy, count) {
  * @param {Object} item
  * @param {Object} copy
  * @param {Object<string, number>} rates
+ * @param {string[]} [terms]
  * @returns {HTMLElement}
  */
-function renderCard(item, copy, rates) {
+function renderCard(item, copy, rates, terms = []) {
   const card = document.createElement('article');
   card.className = 'pcard';
 
@@ -159,7 +142,7 @@ function renderCard(item, copy, rates) {
   catRow.className = 'cat-row';
   const cat = document.createElement('span');
   cat.className = 'cat';
-  cat.textContent = item.product_type || '';
+  setHighlightedText(cat, item.product_type || '', terms);
   const save = document.createElement('button');
   save.type = 'button';
   save.className = 'save';
@@ -181,7 +164,7 @@ function renderCard(item, copy, rates) {
 
   const title = document.createElement('h2');
   title.className = 'title';
-  title.textContent = item.title || item.sku || '';
+  setHighlightedText(title, item.title || item.sku || '', terms);
   body.append(title);
 
   const locRow = document.createElement('div');
@@ -261,16 +244,17 @@ export default async function decorate(widget) {
   const categorySelect = widget.querySelector('#plp-category');
   const brandSelect = widget.querySelector('#plp-brand');
   const countrySelect = widget.querySelector('#plp-country');
-  const yearMinSelect = widget.querySelector('#plp-year-min');
-  const yearMaxSelect = widget.querySelector('#plp-year-max');
   const sortSelect = widget.querySelector('#plp-sort');
   const hoursField = widget.querySelector('.hours-field');
+  const yearField = widget.querySelector('.year-field');
   const priceField = widget.querySelector('.price-field');
   const sidebar = widget.querySelector('#plp-sidebar');
   const scrim = widget.querySelector('.scrim');
+  const pager = widget.querySelector('.pager');
   if (!form || !grid) return;
 
-  const initial = readParams();
+  const initial = readPlpParams();
+  let { page } = initial;
   if (input) input.value = initial.q;
   if (sortSelect) sortSelect.value = initial.sort;
 
@@ -293,23 +277,34 @@ export default async function decorate(widget) {
     initial.country,
     formatCountry,
   );
-  const years = uniqueValues(products, (item) => item.year);
-  fillSelect(
-    yearMinSelect,
-    years,
-    copy.min || 'Min',
-    initial.yearMin != null ? String(initial.yearMin) : '',
-  );
-  fillSelect(
-    yearMaxSelect,
-    years,
-    copy.max || 'Max',
-    initial.yearMax != null ? String(initial.yearMax) : '',
-  );
+
+  const refreshFacets = () => {
+    fillSelect(
+      categorySelect,
+      uniqueValues(products, (item) => item.product_type),
+      copy.chooseCategory || copy.any || 'Any',
+      categorySelect?.value,
+    );
+    fillSelect(
+      brandSelect,
+      uniqueValues(products, (item) => item.brand),
+      copy.chooseBrand || copy.any || 'Any',
+      brandSelect?.value,
+    );
+    fillSelect(
+      countrySelect,
+      uniqueValues(products, (item) => item.country),
+      copy.chooseLocation || copy.any || 'Any',
+      countrySelect?.value,
+      formatCountry,
+    );
+  };
 
   let hoursRange = { min: initial.hoursMin, max: initial.hoursMax };
+  let yearRange = { min: initial.yearMin, max: initial.yearMax };
   let priceRange = { min: initial.priceMin, max: initial.priceMax };
   let hoursControl;
+  let yearControl;
   let priceControl;
   const usdPrice = (item) => priceUsd(item, rates);
 
@@ -323,15 +318,15 @@ export default async function decorate(widget) {
     hoursMax: hoursRange.max,
     priceMin: priceRange.min,
     priceMax: priceRange.max,
-    yearMin: toNumber(yearMinSelect?.value),
-    yearMax: toNumber(yearMaxSelect?.value),
+    yearMin: yearRange.min,
+    yearMax: yearRange.max,
+    page,
     rates,
   });
 
   const setCount = (count) => {
-    const label = resultsLabel(copy, count);
     widget.querySelectorAll('.count, .m-count').forEach((el) => {
-      el.textContent = label;
+      setOdometerLabel(el, count, copy.results || '{count} results', formatNumber);
     });
   };
 
@@ -351,12 +346,9 @@ export default async function decorate(widget) {
       countrySelect.value = '';
     });
     if (state.yearMin != null || state.yearMax != null) {
-      const min = state.yearMin != null ? state.yearMin : (copy.min || 'Min');
-      const max = state.yearMax != null ? state.yearMax : (copy.max || 'Max');
-      add('year', `${min} – ${max}`, () => {
-        yearMinSelect.value = '';
-        yearMaxSelect.value = '';
-      });
+      const min = state.yearMin != null ? formatYear(state.yearMin) : (copy.min || 'Min');
+      const max = state.yearMax != null ? formatYear(state.yearMax) : `${copy.any || 'Any'}`;
+      add('year', `${min} – ${max}`, () => yearControl?.setRange({}));
     }
     if (state.hoursMin != null || state.hoursMax != null) {
       const min = state.hoursMin != null ? formatNumber(state.hoursMin) : '0';
@@ -387,12 +379,66 @@ export default async function decorate(widget) {
     }
   };
 
-  applyFilters = () => {
+  const paintPager = (pages) => {
+    if (!pager) return;
+    pager.replaceChildren();
+    if (pages <= 1) {
+      pager.hidden = true;
+      return;
+    }
+    pager.hidden = false;
+    const go = (next) => {
+      page = next;
+      applyFilters({ resetPage: false });
+      widget.querySelector('.search-panel')?.scrollIntoView({ block: 'start' });
+    };
+    const prev = document.createElement('button');
+    prev.type = 'button';
+    prev.textContent = copy.previous || 'Previous';
+    prev.disabled = page <= 1;
+    prev.addEventListener('click', () => go(page - 1));
+    pager.append(prev);
+    pageItems(page, pages).forEach((n) => {
+      if (!n) {
+        const gap = document.createElement('span');
+        gap.className = 'gap';
+        gap.textContent = '…';
+        pager.append(gap);
+        return;
+      }
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = String(n);
+      if (n === page) button.setAttribute('aria-current', 'page');
+      button.addEventListener('click', () => go(n));
+      pager.append(button);
+    });
+    const next = document.createElement('button');
+    next.type = 'button';
+    next.textContent = copy.next || 'Next';
+    next.disabled = page >= pages;
+    next.addEventListener('click', () => go(page + 1));
+    pager.append(next);
+    const status = document.createElement('span');
+    status.className = 'status';
+    status.textContent = (copy.pageStatus || 'Page {page} of {pages}')
+      .replace('{page}', formatNumber(page))
+      .replace('{pages}', formatNumber(pages));
+    pager.append(status);
+  };
+
+  applyFilters = (opts = {}) => {
+    if (opts.resetPage !== false) page = 1;
     const state = currentState();
     hoursControl?.updateHistogram(filterProducts(products, {
       ...state,
       hoursMin: null,
       hoursMax: null,
+    }));
+    yearControl?.updateHistogram(filterProducts(products, {
+      ...state,
+      yearMin: null,
+      yearMax: null,
     }));
     priceControl?.updateHistogram(filterProducts(products, {
       ...state,
@@ -400,12 +446,19 @@ export default async function decorate(widget) {
       priceMax: null,
     }));
     const matches = sortProducts(filterProducts(products, state), state.sort, rates);
+    const pages = Math.max(1, Math.ceil(matches.length / PAGE_SIZE));
+    if (page > pages) page = pages;
+    const start = (page - 1) * PAGE_SIZE;
+    const slice = matches.slice(start, start + PAGE_SIZE);
+    const terms = String(state.q || '').trim().toLowerCase().split(/\s+/)
+      .filter(Boolean);
     grid.replaceChildren();
-    matches.forEach((item) => grid.append(renderCard(item, copy, rates)));
+    slice.forEach((item) => grid.append(renderCard(item, copy, rates, terms)));
     if (empty) empty.hidden = matches.length > 0;
     setCount(matches.length);
     paintChips(state);
-    writeParams(state);
+    paintPager(pages);
+    writeParams({ ...state, page });
     return matches;
   };
 
@@ -425,6 +478,26 @@ export default async function decorate(widget) {
       },
     });
     hoursRange = hoursControl.getRange();
+  }
+
+  if (yearField) {
+    yearControl = attachRangeFilter(yearField, {
+      products,
+      copy,
+      inline: true,
+      step: YEAR_STEP,
+      origin: YEAR_MIN,
+      cap: YEAR_MAX,
+      over: false,
+      initial: { min: initial.yearMin, max: initial.yearMax },
+      getValue: (item) => item.year,
+      formatValue: formatYear,
+      onChange: () => {
+        yearRange = yearControl.getRange();
+        applyFilters();
+      },
+    });
+    yearRange = yearControl.getRange();
   }
 
   if (priceField) {
@@ -466,12 +539,12 @@ export default async function decorate(widget) {
     if (categorySelect) categorySelect.value = '';
     if (brandSelect) brandSelect.value = '';
     if (countrySelect) countrySelect.value = '';
-    if (yearMinSelect) yearMinSelect.value = '';
-    if (yearMaxSelect) yearMaxSelect.value = '';
     if (sortSelect) sortSelect.value = 'relevance';
     hoursControl?.setRange({});
+    yearControl?.setRange({});
     priceControl?.setRange({});
     hoursRange = hoursControl?.getRange() || { min: null, max: null };
+    yearRange = yearControl?.getRange() || { min: null, max: null };
     priceRange = priceControl?.getRange() || { min: null, max: null };
     applyFilters();
   });
@@ -501,4 +574,8 @@ export default async function decorate(widget) {
   }
 
   applyFilters();
+  subscribeProducts(() => {
+    refreshFacets();
+    applyFilters({ resetPage: false });
+  });
 }

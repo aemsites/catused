@@ -21,7 +21,7 @@ function escapeHTML(str) {
  * @param {string[]} terms
  * @returns {string}
  */
-function highlightTerms(text, terms) {
+export function highlightTerms(text, terms) {
   if (!text || !terms?.length) return escapeHTML(text);
   const intervals = [];
   const lower = text.toLowerCase();

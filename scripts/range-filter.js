@@ -46,29 +46,41 @@ function maxOf(values, fallback = 0) {
  * @param {number} [cap]
  * @returns {{ min: number, max: number, lastRegular: number }}
  */
-function valueDomain(values, step, cap) {
+function valueDomain(values, step, cap, origin = 0, over = true) {
+  const start = origin || 0;
+  let lastRegular;
   if (cap != null) {
-    const lastRegular = Math.max(step, Math.round(cap / step) * step);
-    return { min: 0, max: lastRegular + step, lastRegular };
+    lastRegular = Math.max(start, Math.round(cap / step) * step);
+  } else {
+    const dataMax = maxOf(values, start);
+    lastRegular = Math.max(start + step, Math.floor(dataMax / step) * step);
   }
-  const dataMax = maxOf(values, 0);
-  const lastRegular = Math.max(step, Math.floor(dataMax / step) * step);
-  return { min: 0, max: lastRegular + step, lastRegular };
+  return {
+    min: start,
+    lastRegular,
+    max: over ? lastRegular + step : lastRegular,
+    over,
+  };
 }
 
 /**
- * Builds histogram bins in step-sized buckets; the last bin is unbounded.
+ * Builds histogram bins in step-sized buckets; the last bin is unbounded when
+ * the domain has an over tick.
  * @param {number[]} values
- * @param {{ min: number, max: number, lastRegular: number }} domain
+ * @param {{ min: number, max: number, lastRegular: number, over: boolean }} domain
  * @param {number} step
  * @returns {Array<{ start: number, end: number, over: boolean, ratio: number }>}
  */
 function buildHistogram(values, domain, step) {
-  const { min, max, lastRegular } = domain;
-  const bins = Math.max(1, Math.round((max - min) / step));
+  const {
+    min, max, lastRegular, over: hasOver,
+  } = domain;
+  const bins = Math.max(1, hasOver === false
+    ? Math.round((lastRegular - min) / step) + 1
+    : Math.round((max - min) / step));
   const counts = Array(bins).fill(0);
   values.forEach((value) => {
-    let index = value >= lastRegular
+    let index = hasOver !== false && value >= lastRegular
       ? bins - 1
       : Math.floor((value - min) / step);
     if (index >= bins) index = bins - 1;
@@ -78,11 +90,11 @@ function buildHistogram(values, domain, step) {
   const peak = Math.max(1, maxOf(counts, 0));
   return counts.map((count, index) => {
     const start = min + index * step;
-    const over = index === bins - 1;
+    const unbounded = hasOver !== false && index === bins - 1;
     return {
       start,
-      end: over ? Infinity : start + step,
-      over,
+      end: unbounded ? Infinity : start + step,
+      over: unbounded,
       ratio: count / peak,
     };
   });
@@ -96,6 +108,7 @@ function buildHistogram(values, domain, step) {
  */
 export default function attachRangeFilter(field, {
   products, copy, onChange, getValue, step, formatValue, cap, inline, initial,
+  origin = 0, over = true,
 }) {
   loadCSS(`${window.hlx?.codeBasePath || ''}/styles/product-search.css`);
 
@@ -120,7 +133,7 @@ export default function attachRangeFilter(field, {
   if (!inline && !trigger) return empty;
 
   const format = formatValue || formatNumber;
-  const domain = valueDomain(numericValues(products, getValue), step, cap);
+  const domain = valueDomain(numericValues(products, getValue), step, cap, origin, over);
   let bins = buildHistogram(numericValues(products, getValue), domain, step);
   const selected = { min: domain.min, max: domain.max };
   const label = (value) => formatBound(value, format, domain, copy);
@@ -134,13 +147,16 @@ export default function attachRangeFilter(field, {
   minSlider.setAttribute('aria-label', copy.min || 'Min');
   maxSlider.setAttribute('aria-label', copy.max || 'Max');
 
-  const isOver = (value) => value >= domain.max;
+  const isOver = (value) => (over ? value >= domain.max : value >= domain.lastRegular);
   const isAny = () => selected.min <= domain.min && isOver(selected.max);
 
   const getRange = () => {
     if (isAny()) return { min: null, max: null };
+    let minBound = selected.min;
+    if (selected.min <= domain.min) minBound = null;
+    else if (isOver(selected.min)) minBound = domain.lastRegular;
     return {
-      min: isOver(selected.min) ? domain.lastRegular : selected.min,
+      min: minBound,
       max: isOver(selected.max) ? null : selected.max,
     };
   };
