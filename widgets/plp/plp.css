@@ -371,6 +371,8 @@
 }
 
 .plp .pcard {
+  position: relative;
+  isolation: isolate;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -437,6 +439,8 @@
 }
 
 .plp .save {
+  position: relative;
+  z-index: 1;
   width: 28px;
   height: 28px;
   padding: 0;
@@ -521,6 +525,13 @@
   width: 100%;
   margin-top: 14px;
   justify-content: center;
+  overflow: visible;
+}
+
+.plp .pcard .button.accent::after {
+  content: '';
+  position: absolute;
+  inset: 0;
 }
 
 .plp .empty {

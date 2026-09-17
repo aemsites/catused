@@ -1,3 +1,7 @@
+.cards {
+  margin-top: var(--space-l);
+}
+
 .cards > ul {
   list-style: none;
   margin: 0;
@@ -8,8 +12,20 @@
 }
 
 .cards > ul > li {
+  position: relative;
+  isolation: isolate;
   border: 1px solid #dadada;
   background-color: var(--background-color);
+}
+
+.cards > ul > li.linked a[href]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+.cards > ul > li.linked a.button[href] {
+  overflow: visible;
 }
 
 .cards .cards-card-body {

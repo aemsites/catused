@@ -1,3 +1,7 @@
+.carousel {
+  margin-top: var(--space-l);
+}
+
 .carousel .carousel-slides-container {
   position: relative;
 }
@@ -108,18 +112,23 @@
 
 /* stylelint-disable-next-line no-descending-specificity */
 .carousel .carousel-navigation-buttons button {
-  border-radius: 8px;
+  border-radius: 50%;
   margin: 0;
   padding: 0;
-  width: 2rem;
-  height: 2rem;
+  width: 2.75rem;
+  height: 2.75rem;
   position: relative;
   background-color: rgb(0 0 0 / 25%);
 }
 
-.carousel .carousel-navigation-buttons button:hover,
+.carousel .carousel-navigation-buttons button:hover {
+  background-color: rgb(0 0 0 / 80%);
+}
+
 .carousel .carousel-navigation-buttons button:focus-visible {
   background-color: rgb(0 0 0 / 80%);
+  outline: 2px solid var(--color-brand);
+  outline-offset: 3px;
 }
 
 .carousel .carousel-navigation-buttons button::after {
@@ -219,9 +228,30 @@
   transition: transform 0.5s;
 }
 
-/* stylelint-disable-next-line no-descending-specificity -- disjoint ancestor chain, cannot match the same element */
-.carousel.listing .carousel-slide:hover img {
+/* stylelint-disable no-descending-specificity -- disjoint ancestor chain, cannot match the same element */
+.carousel.listing .listing-link:hover img,
+.carousel.listing .listing-link:focus-visible img {
   transform: scale(1.06);
+}
+/* stylelint-enable no-descending-specificity */
+
+/* stylelint-disable-next-line no-descending-specificity -- disjoint ancestor chain, cannot match the same element */
+.carousel.listing .listing-link {
+  position: absolute;
+  inset: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.carousel.listing .listing-link:hover,
+.carousel.listing .listing-link:focus-visible {
+  color: inherit;
+  text-decoration: none;
+}
+
+.carousel.listing .listing-link:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: -3px;
 }
 
 .carousel.listing .listing-badge {
@@ -272,41 +302,31 @@
   margin: 12px 0 0;
 }
 
-.carousel.listing .listing-body a.button.primary {
-  display: inline;
-  max-width: none;
-  margin: 0;
-  border: 0;
-  border-radius: 0;
-  padding: 0;
-  background: none;
-  color: var(--color-link-on-dark);
-  font-size: 13.5px;
-  font-weight: 700;
-  line-height: inherit;
-  overflow: visible;
-  text-overflow: unset;
-  white-space: normal;
-}
-
-.carousel.listing .listing-body a.button.primary:hover,
-.carousel.listing .listing-body a.button.primary:focus-visible {
-  border: 0;
-  background: none;
-  color: var(--color-link-on-dark);
+.carousel.listing .listing-link:hover .button.primary,
+.carousel.listing .listing-link:focus-visible .button.primary {
   text-decoration: underline;
 }
 
 .carousel.listing .carousel-slide-indicators {
-  gap: 9px;
-  margin-top: 26px;
+  gap: 8px;
+  margin-top: 20px;
 }
 
 .carousel.listing .carousel-slide-indicator button {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
+  position: relative;
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
   background-color: var(--color-gray-4);
+  transition: width 0.2s, background-color 0.2s;
+}
+
+.carousel.listing .carousel-slide-indicator button::before {
+  content: '';
+  position: absolute;
+  inset: -16px -8px;
 }
 
 .carousel.listing .carousel-slide-indicator button:hover,
@@ -314,54 +334,70 @@
   background-color: var(--color-gray-2);
 }
 
+.carousel.listing .carousel-slide-indicator button:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 4px;
+}
+
 .carousel.listing .carousel-slide-indicator button:disabled,
 .carousel.listing .carousel-slide-indicator button:disabled:hover,
 .carousel.listing .carousel-slide-indicator button:disabled:focus-visible {
+  width: 20px;
   background-color: var(--color-black);
-  transform: scale(1.15);
 }
 
 .carousel.listing .carousel-navigation-buttons {
-  left: -18px;
-  right: -18px;
+  left: 8px;
+  right: 8px;
+  pointer-events: none;
 }
 
 /* stylelint-disable-next-line no-descending-specificity -- disjoint ancestor chain, cannot match the same element */
 .carousel.listing .carousel-navigation-buttons button {
-  width: 44px;
-  height: 44px;
-  border: 1px solid var(--color-border);
+  pointer-events: auto;
+  width: 3rem;
+  height: 3rem;
+  border: 0;
   border-radius: 50%;
   background-color: var(--color-white);
-  box-shadow: 0 3px 12px rgb(0 0 0 / 16%);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 12%), 0 0 0 1px rgb(0 0 0 / 6%);
+  transition: background-color 0.15s, box-shadow 0.15s, transform 0.15s;
 }
 
 /* stylelint-disable no-descending-specificity -- disjoint ancestor chain, cannot match the same element */
-.carousel.listing .carousel-navigation-buttons button:hover,
+.carousel.listing .carousel-navigation-buttons button:hover:not(:disabled) {
+  background-color: var(--color-white);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 16%), 0 0 0 1px rgb(0 0 0 / 8%);
+  transform: scale(1.05);
+}
+
 .carousel.listing .carousel-navigation-buttons button:focus-visible {
-  background-color: var(--color-bg-light);
+  background-color: var(--color-white);
+  outline: 2px solid var(--color-brand);
+  outline-offset: 3px;
 }
 /* stylelint-enable no-descending-specificity */
 
+/* stylelint-disable-next-line no-descending-specificity -- disjoint ancestor chain, cannot match the same element */
 .carousel.listing .carousel-navigation-buttons button::after {
   border-color: var(--color-text);
-  width: 0.6rem;
-  height: 0.6rem;
+  width: 0.7rem;
+  height: 0.7rem;
 }
 
 /* stylelint-disable-next-line no-descending-specificity -- disjoint ancestor chain, cannot match the same element */
 .carousel.listing .carousel-navigation-buttons button:disabled {
-  opacity: 0.35;
+  opacity: 0.4;
   cursor: default;
-}
-
-@media (width < 900px) {
-  .carousel.listing .carousel-navigation-buttons {
-    display: none;
-  }
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 8%);
 }
 
 @media (width >= 900px) {
+  .carousel.listing .carousel-navigation-buttons {
+    left: -20px;
+    right: -20px;
+  }
+
   .carousel.listing .carousel-slide {
     flex-basis: calc((100% - 44px) / 3);
   }

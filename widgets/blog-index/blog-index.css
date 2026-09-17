@@ -105,6 +105,8 @@
 }
 
 .blog-index .card {
+  position: relative;
+  isolation: isolate;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -157,6 +159,8 @@
 }
 
 .blog-index .topics {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
@@ -186,6 +190,12 @@
 .blog-index h2 a {
   color: inherit;
   text-decoration: none;
+}
+
+.blog-index h2 a::after {
+  content: '';
+  position: absolute;
+  inset: 0;
 }
 
 .blog-index h2 a:hover,

@@ -111,9 +111,8 @@ function renderCard(post, copy, featured, onTopic) {
   card.className = featured ? 'card lead' : 'card';
 
   const href = articleHref(post.path);
-  const media = document.createElement('a');
+  const media = document.createElement('div');
   media.className = 'media';
-  media.href = href;
   const src = String(post.image || '').trim();
   if (src.startsWith('http') || src.startsWith('/') || src.startsWith('.')) {
     const img = document.createElement('img');
@@ -171,9 +170,8 @@ function renderCard(post, copy, featured, onTopic) {
     body.append(desc);
   }
 
-  const more = document.createElement('a');
+  const more = document.createElement('span');
   more.className = 'more';
-  more.href = href;
   more.textContent = copy.readStory || 'Read story';
   body.append(more);
 

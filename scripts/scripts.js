@@ -179,15 +179,22 @@ function isTrustedHost() {
 }
 
 /**
+ * @param {string} url Absolute URL to fetch
+ * @returns {string}
+ */
+function requestUrl(url) {
+  return isTrustedHost()
+    ? url
+    : `${FCORS_PROXY}${encodeURIComponent(url)}&key=${FCORS_KEY}`;
+}
+
+/**
  * Fetches JSON, proxying through fcors.org when the page is not on a trusted host.
  * @param {string} url Absolute URL to fetch
  * @returns {Promise<any>}
  */
 export async function fetchJson(url) {
-  const requestUrl = isTrustedHost()
-    ? url
-    : `${FCORS_PROXY}${encodeURIComponent(url)}&key=${FCORS_KEY}`;
-  const resp = await fetch(requestUrl);
+  const resp = await fetch(requestUrl(url));
   if (!resp.ok) throw new Error(`Failed to fetch ${url}: ${resp.status}`);
   return resp.json();
 }
@@ -445,6 +452,38 @@ function decorateSectionBackgrounds(main) {
 }
 
 /**
+ * Rewrites relative pipeline media URLs so they resolve against aem.network.
+ * @param {Document} dom
+ */
+function rewriteProductMedia(dom) {
+  dom.querySelectorAll('main [src^="./media_"]').forEach((el) => {
+    el.setAttribute('src', el.getAttribute('src').replace('./', `${PIPELINE_ORIGIN}/products/`));
+  });
+  dom.querySelectorAll('main [srcset^="./media_"]').forEach((el) => {
+    el.setAttribute('srcset', el.getAttribute('srcset').replace('./', `${PIPELINE_ORIGIN}/products/`));
+  });
+}
+
+/**
+ * Fetches a rendered product document.
+ * On `.aem.network` / `.cat.com` this is a same-origin pathname fetch; elsewhere
+ * the pipeline URL is loaded through fcors.
+ * @param {string} href Product page URL or pathname
+ * @returns {Promise<Document>}
+ */
+export async function fetchProductDocument(href) {
+  const url = new URL(href, window.location.href);
+  const path = url.pathname.replace(/\/+$/, '');
+  const resp = await fetch(isTrustedHost()
+    ? path
+    : requestUrl(`${PIPELINE_ORIGIN}${path}`));
+  if (!resp.ok) throw new Error(`Failed to fetch product ${path}: ${resp.status}`);
+  const dom = new DOMParser().parseFromString(await resp.text(), 'text/html');
+  rewriteProductMedia(dom);
+  return dom;
+}
+
+/**
  * Renders a product page on hosts that do not proxy the product pipeline.
  *
  * `aem.page`, `aem.live` and localhost serve the authored site, not the pipeline
@@ -457,19 +496,8 @@ function decorateSectionBackgrounds(main) {
 async function simulatePDPPreview() {
   const { pathname } = window.location;
   try {
-    const resp = await fetch(`${PIPELINE_ORIGIN}${pathname}`);
-    if (!resp.ok) return false;
-
-    const dom = new DOMParser().parseFromString(await resp.text(), 'text/html');
+    const dom = await fetchProductDocument(pathname);
     if (!dom.querySelector('meta[name="sku"]')) return false;
-
-    // Relative media paths resolve against the pipeline origin, not this host.
-    dom.querySelectorAll('main [src^="./media_"]').forEach((el) => {
-      el.setAttribute('src', el.getAttribute('src').replace('./', `${PIPELINE_ORIGIN}/products/`));
-    });
-    dom.querySelectorAll('main [srcset^="./media_"]').forEach((el) => {
-      el.setAttribute('srcset', el.getAttribute('srcset').replace('./', `${PIPELINE_ORIGIN}/products/`));
-    });
 
     // Keep the authored header/footer; replace only the product content and the
     // head metadata the block reads.
