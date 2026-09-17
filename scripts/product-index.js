@@ -231,6 +231,28 @@ export function uniqueValues(products, getValue) {
 }
 
 /**
+ * Unique non-empty values with match counts, highest first. Zero-count values
+ * are omitted.
+ * @param {Array<Object>} products
+ * @param {Function} getValue
+ * @returns {Array<{ value: string, count: number }>}
+ */
+export function facetCounts(products, getValue) {
+  const counts = new Map();
+  products.forEach((item) => {
+    const text = String(getValue(item) ?? '').trim();
+    if (!text) return;
+    const key = text.toLowerCase();
+    const current = counts.get(key);
+    if (current) current.count += 1;
+    else counts.set(key, { value: text, count: 1 });
+  });
+  return [...counts.values()].sort((a, b) => (
+    b.count - a.count || a.value.localeCompare(b.value, 'en', { numeric: true })
+  ));
+}
+
+/**
  * Sorts a product list. `relevance` keeps the incoming order.
  * @param {Array<Object>} products
  * @param {string} sort

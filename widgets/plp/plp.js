@@ -20,7 +20,7 @@ import {
   readPlpParams,
   applyPlpParams,
   sortProducts,
-  uniqueValues,
+  facetCounts,
 } from '../../scripts/product-index.js';
 import attachRangeFilter from '../../scripts/range-filter.js';
 import attachSuggestions, { highlightTerms } from '../../scripts/suggestions.js';
@@ -40,24 +40,29 @@ function writeParams(state) {
 }
 
 /**
- * Populates a select with an Any option plus values.
+ * Populates a select with counted facet options, sorted by count.
  * @param {HTMLSelectElement} select
- * @param {string[]} values
+ * @param {Array<{ value: string, count: number }>} facets
  * @param {string} anyLabel
  * @param {string} current
  * @param {Function} [labelFor]
  */
-function fillSelect(select, values, anyLabel, current, labelFor) {
+function fillFacetSelect(select, facets, anyLabel, current, labelFor) {
   if (!select) return;
+  const items = facets.filter((facet) => facet.count > 0);
+  if (current && !items.some((facet) => facet.value === current)) {
+    items.push({ value: current, count: 0 });
+  }
   select.replaceChildren();
   const any = document.createElement('option');
   any.value = '';
   any.textContent = anyLabel;
   select.append(any);
-  values.forEach((value) => {
+  items.forEach((facet) => {
     const option = document.createElement('option');
-    option.value = value;
-    option.textContent = labelFor ? labelFor(value) : value;
+    option.value = facet.value;
+    const name = labelFor ? labelFor(facet.value) : facet.value;
+    option.textContent = `${name} (${formatNumber(facet.count)})`;
     select.append(option);
   });
   if (current) select.value = current;
@@ -258,48 +263,6 @@ export default async function decorate(widget) {
   if (input) input.value = initial.q;
   if (sortSelect) sortSelect.value = initial.sort;
 
-  fillSelect(
-    categorySelect,
-    uniqueValues(products, (item) => item.product_type),
-    copy.chooseCategory || copy.any || 'Any',
-    initial.category,
-  );
-  fillSelect(
-    brandSelect,
-    uniqueValues(products, (item) => item.brand),
-    copy.chooseBrand || copy.any || 'Any',
-    initial.brand,
-  );
-  fillSelect(
-    countrySelect,
-    uniqueValues(products, (item) => item.country),
-    copy.chooseLocation || copy.any || 'Any',
-    initial.country,
-    formatCountry,
-  );
-
-  const refreshFacets = () => {
-    fillSelect(
-      categorySelect,
-      uniqueValues(products, (item) => item.product_type),
-      copy.chooseCategory || copy.any || 'Any',
-      categorySelect?.value,
-    );
-    fillSelect(
-      brandSelect,
-      uniqueValues(products, (item) => item.brand),
-      copy.chooseBrand || copy.any || 'Any',
-      brandSelect?.value,
-    );
-    fillSelect(
-      countrySelect,
-      uniqueValues(products, (item) => item.country),
-      copy.chooseLocation || copy.any || 'Any',
-      countrySelect?.value,
-      formatCountry,
-    );
-  };
-
   let hoursRange = { min: initial.hoursMin, max: initial.hoursMax };
   let yearRange = { min: initial.yearMin, max: initial.yearMax };
   let priceRange = { min: initial.priceMin, max: initial.priceMax };
@@ -310,9 +273,9 @@ export default async function decorate(widget) {
 
   const currentState = () => ({
     q: input?.value || '',
-    category: categorySelect?.value || '',
-    brand: brandSelect?.value || '',
-    country: countrySelect?.value || '',
+    category: categorySelect?.options.length ? categorySelect.value : (initial.category || ''),
+    brand: brandSelect?.options.length ? brandSelect.value : (initial.brand || ''),
+    country: countrySelect?.options.length ? countrySelect.value : (initial.country || ''),
     sort: sortSelect?.value || 'relevance',
     hoursMin: hoursRange.min,
     hoursMax: hoursRange.max,
@@ -323,6 +286,38 @@ export default async function decorate(widget) {
     page,
     rates,
   });
+
+  const refreshFacets = () => {
+    const state = currentState();
+    fillFacetSelect(
+      categorySelect,
+      facetCounts(
+        filterProducts(products, { ...state, category: '' }),
+        (item) => item.product_type,
+      ),
+      copy.chooseCategory || copy.any || 'Any',
+      state.category,
+    );
+    fillFacetSelect(
+      brandSelect,
+      facetCounts(
+        filterProducts(products, { ...state, brand: '' }),
+        (item) => item.brand,
+      ),
+      copy.chooseBrand || copy.any || 'Any',
+      state.brand,
+    );
+    fillFacetSelect(
+      countrySelect,
+      facetCounts(
+        filterProducts(products, { ...state, country: '' }),
+        (item) => item.country,
+      ),
+      copy.chooseLocation || copy.any || 'Any',
+      state.country,
+      formatCountry,
+    );
+  };
 
   const setCount = (count) => {
     widget.querySelectorAll('.count, .m-count').forEach((el) => {
@@ -430,6 +425,7 @@ export default async function decorate(widget) {
   applyFilters = (opts = {}) => {
     if (opts.resetPage !== false) page = 1;
     const state = currentState();
+    refreshFacets();
     hoursControl?.updateHistogram(filterProducts(products, {
       ...state,
       hoursMin: null,
@@ -574,7 +570,6 @@ export default async function decorate(widget) {
   }
 
   subscribeProducts(() => {
-    refreshFacets();
     applyFilters({ resetPage: false });
   });
   applyFilters();
