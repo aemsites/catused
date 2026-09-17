@@ -229,6 +229,15 @@ function buildWidgetAutoBlocks(main) {
 }
 
 /**
+ * Whether the element is the page's primary main, not a detached fragment container.
+ * @param {Element} main The container element
+ * @returns {boolean}
+ */
+function isPageMain(main) {
+  return main === document.querySelector('main');
+}
+
+/**
  * Wraps the product-pipeline markup in a `pdp` block.
  *
  * The pipeline renders a flat document -- an `<h1>`, a price paragraph, then one
@@ -241,7 +250,7 @@ function buildPDPBlock(main) {
   // `loadFragment` also runs `decorateMain` over nav and footer fragments, so
   // identity-check the document's own <main> rather than trusting the sku meta
   // tag, which is global. Without this the block is rebuilt inside the header.
-  if (main !== document.querySelector('main')) return;
+  if (!isPageMain(main)) return;
   if (!isProductPage()) return;
   if (main.querySelector('.pdp')) return;
 
@@ -256,6 +265,64 @@ function buildPDPBlock(main) {
   section.append(buildBlock('pdp', { elems: content.flatMap((div) => [...div.children]) }));
   content[0].replaceWith(section);
   content.slice(1).forEach((div) => div.remove());
+}
+
+/**
+ * Whether the current document is a blog article.
+ * Theme `blog` is set in metadata; `/blog/...` articles also qualify.
+ * @returns {boolean}
+ */
+function isBlogPage() {
+  if (document.body.classList.contains('blog')) return true;
+  const path = window.location.pathname.replace(/\/+$/, '');
+  return /\/blog\/.+/.test(path);
+}
+
+/**
+ * Picture next to an element (previous sibling first).
+ * @param {Element} el
+ * @returns {HTMLPictureElement|null}
+ */
+function adjacentPicture(el) {
+  const from = (node) => node?.querySelector?.('picture')
+    || (node?.tagName === 'PICTURE' ? node : null);
+  return from(el.previousElementSibling) || from(el.nextElementSibling);
+}
+
+/**
+ * Wraps the first image + h1 pair in a hero block, in its own section.
+ * @param {Element} main
+ */
+function buildHeroBlock(main) {
+  if (!isPageMain(main) || !isBlogPage()) return;
+  if (main.querySelector('.hero')) return;
+  const h1 = main.querySelector('h1');
+  if (!h1) return;
+  const picture = adjacentPicture(h1);
+  if (!picture) return;
+  const img = picture.querySelector('img');
+  if (img) {
+    img.loading = 'eager';
+    img.fetchPriority = 'high';
+  }
+  const imageEl = picture.closest('p') || picture;
+  const section = document.createElement('div');
+  section.append(buildBlock('hero', { elems: [imageEl, h1] }));
+  main.prepend(section);
+}
+
+/**
+ * Inserts a blog-header block so article metadata can be decorated.
+ * @param {Element} main
+ */
+function buildBlogHeaderBlock(main) {
+  if (!isPageMain(main) || !isBlogPage()) return;
+  document.body.classList.add('blog');
+  if (main.querySelector('.blog-header')) return;
+  const sections = [...main.querySelectorAll(':scope > div')];
+  const section = sections.find((div) => !div.querySelector(':scope > .hero')) || sections[0];
+  if (!section) return;
+  section.prepend(buildBlock('blog-header', { elems: [] }));
 }
 
 /**
@@ -282,6 +349,8 @@ function buildAutoBlocks(main) {
         });
       });
     }
+    buildHeroBlock(main);
+    buildBlogHeaderBlock(main);
     buildWidgetAutoBlocks(main);
   } catch (error) {
     // eslint-disable-next-line no-console

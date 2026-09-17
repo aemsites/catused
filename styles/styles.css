@@ -482,3 +482,86 @@ main .section[data-background] > div {
   position: relative;
   z-index: 1;
 }
+
+/* blog articles */
+body.blog {
+  --blog-measure: 42rem;
+}
+
+body.blog main  > div.section {
+  text-align: left;
+}
+
+body.blog main > .section {
+  margin: 0 0 var(--space-xl);
+}
+
+body.blog main > .section > div {
+  max-width: var(--blog-measure);
+}
+
+body.blog main > .hero-container > div {
+  max-width: none;
+  padding: 0;
+}
+
+body.blog main > .section.blog-index-container > div {
+  max-width: var(--site-width);
+}
+
+body.blog main > .section > .default-content-wrapper {
+  padding-top: var(--space-l);
+  font-size: 1.125rem;
+  line-height: 1.7;
+}
+
+body.blog main > .section > .default-content-wrapper h2,
+body.blog main > .section > .default-content-wrapper h3 {
+  margin-top: 2.4em;
+  margin-bottom: 0.6em;
+  font-family: var(--display-font-family);
+  letter-spacing: var(--tracking-tight);
+  line-height: 1.15;
+}
+
+body.blog main > .section > .default-content-wrapper h2 {
+  padding-bottom: 0.35em;
+  border-bottom: 3px solid var(--color-brand);
+}
+
+body.blog main > .section > .default-content-wrapper p {
+  margin: 0 0 1.15em;
+}
+
+body.blog main > .section > .default-content-wrapper ul,
+body.blog main > .section > .default-content-wrapper ol {
+  margin: 0 0 1.35em;
+  padding-left: 1.2em;
+}
+
+body.blog main > .section > .default-content-wrapper li {
+  margin: 0.45em 0;
+}
+
+body.blog main > .section > .default-content-wrapper li::marker {
+  color: var(--color-brand-dark);
+}
+
+body.blog main > .section > .default-content-wrapper picture {
+  display: block;
+  margin: 2rem 0;
+  overflow: hidden;
+  border-radius: var(--radius-l);
+}
+
+body.blog main > .section > .default-content-wrapper img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+}
+
+body.blog main > .section > .default-content-wrapper a:any-link {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}

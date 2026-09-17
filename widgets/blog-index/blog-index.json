@@ -1,0 +1,10 @@
+{
+  "en": {
+    "filtersLabel": "Topics",
+    "all": "All",
+    "results": "{count} stories",
+    "noResults": "No stories found",
+    "readStory": "Read story",
+    "featured": "Featured"
+  }
+}
