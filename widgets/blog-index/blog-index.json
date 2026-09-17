@@ -2,6 +2,9 @@
   "en": {
     "filtersLabel": "Topics",
     "all": "All",
+    "moreTopics": "More topics…",
+    "fewerTopics": "Fewer topics",
+    "topicCount": "{name} {count}",
     "results": "{count} stories",
     "noResults": "No stories found",
     "readStory": "Read story",

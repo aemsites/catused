@@ -1,6 +1,7 @@
 import { loadCopy, hydrateCopy } from '../../scripts/scripts.js';
 
 const INDEX_URL = '/blog/query-index.json?limit=500';
+const TOPIC_PREVIEW = 5;
 
 /**
  * @param {string} raw
@@ -57,22 +58,23 @@ async function loadPosts() {
 }
 
 /**
- * Unique topics across posts, sorted.
+ * Topics ranked by article count, descending.
  * @param {Array<Object>} posts
- * @returns {string[]}
+ * @returns {Array<{ name: string, count: number }>}
  */
-function allTopics(posts) {
-  const seen = new Set();
-  const out = [];
+function topicStats(posts) {
+  const counts = new Map();
   posts.forEach((post) => {
     post.topics.forEach((topic) => {
       const key = topic.toLowerCase();
-      if (seen.has(key)) return;
-      seen.add(key);
-      out.push(topic);
+      const current = counts.get(key);
+      if (current) current.count += 1;
+      else counts.set(key, { name: topic, count: 1 });
     });
   });
-  return out.sort((a, b) => a.localeCompare(b, 'en'));
+  return [...counts.values()].sort((a, b) => (
+    b.count - a.count || a.name.localeCompare(b.name, 'en')
+  ));
 }
 
 /**
@@ -197,7 +199,10 @@ export default async function decorate(widget) {
   if (!feed) return;
 
   let selected = readTopicsParam();
-  const topics = allTopics(posts);
+  const topics = topicStats(posts);
+  let expanded = topics.slice(TOPIC_PREVIEW).some((topic) => (
+    selected.has(topic.name.toLowerCase())
+  ));
 
   const setCount = (count) => {
     if (!countEl) return;
@@ -221,26 +226,60 @@ export default async function decorate(widget) {
     paint();
   };
 
+  const topicLabel = (name, count) => {
+    const template = copy.topicCount || '{name} {count}';
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'tag';
+    const label = document.createElement('span');
+    label.textContent = name;
+    const n = document.createElement('span');
+    n.className = 'n';
+    n.textContent = String(count);
+    button.append(label, n);
+    button.setAttribute('aria-label', template
+      .replace('{name}', name)
+      .replace('{count}', String(count)));
+    return button;
+  };
+
+  const visibleTopics = () => {
+    if (expanded) return topics;
+    const preview = topics.slice(0, TOPIC_PREVIEW);
+    topics.slice(TOPIC_PREVIEW).forEach((topic) => {
+      if (selected.has(topic.name.toLowerCase())) preview.push(topic);
+    });
+    return preview;
+  };
+
   const paintFilters = () => {
     if (!filtersEl) return;
     filtersEl.replaceChildren();
-    const all = document.createElement('button');
-    all.type = 'button';
-    all.className = 'tag';
-    all.textContent = copy.all || 'All';
+    const all = topicLabel(copy.all || 'All', posts.length);
     all.setAttribute('aria-pressed', selected.size ? 'false' : 'true');
     all.addEventListener('click', () => toggleTopic('', false));
     filtersEl.append(all);
-    topics.forEach((topic) => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'tag';
-      button.textContent = topic;
-      const on = selected.has(topic.toLowerCase());
+    visibleTopics().forEach((topic) => {
+      const button = topicLabel(topic.name, topic.count);
+      const on = selected.has(topic.name.toLowerCase());
       button.setAttribute('aria-pressed', on ? 'true' : 'false');
-      button.addEventListener('click', () => toggleTopic(topic, !on));
+      button.addEventListener('click', () => toggleTopic(topic.name, !on));
       filtersEl.append(button);
     });
+    if (topics.length > TOPIC_PREVIEW) {
+      const more = document.createElement('button');
+      more.type = 'button';
+      more.className = 'more-topics';
+      more.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      more.textContent = expanded
+        ? (copy.fewerTopics || 'Fewer topics')
+        : (copy.moreTopics || 'More topics…');
+      more.addEventListener('click', () => {
+        expanded = !expanded;
+        paintFilters();
+      });
+      filtersEl.append(more);
+    }
   };
 
   paint = () => {
