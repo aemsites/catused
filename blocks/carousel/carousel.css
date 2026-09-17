@@ -13,8 +13,7 @@
   display: flex;
   scroll-behavior: smooth;
   scroll-snap-type: x mandatory;
-  overflow-x: scroll;
-  overflow-y: clip;
+  overflow: scroll clip;
 }
 
 .carousel .carousel-slides::-webkit-scrollbar {
@@ -57,7 +56,7 @@
   padding: 1rem;
   margin: 1.5rem 3rem;
   color: white;
-  background-color: rgba(0 0 0 / 50%);
+  background-color: rgb(0 0 0 / 50%);
   position: relative;
   width: var(--slide-content-width, auto);
 }
@@ -73,19 +72,18 @@
   height: 1rem;
   padding: 0;
   border-radius: 1rem;
-  background-color: rgba(0 0 0 / 25%);
+  background-color: rgb(0 0 0 / 25%);
 }
 
 .carousel .carousel-slide-indicator button:disabled,
 .carousel .carousel-slide-indicator button:hover,
 .carousel .carousel-slide-indicator button:focus-visible {
-  background-color: rgba(0 0 0 / 80%);
+  background-color: rgb(0 0 0 / 80%);
 }
 
 .carousel .carousel-slide-indicator span,
 .carousel .carousel-navigation-buttons span {
   border: 0;
-  clip: rect(0 0 0 0);
   clip-path: inset(50%);
   height: 1px;
   margin: -1px;
@@ -116,12 +114,12 @@
   width: 2rem;
   height: 2rem;
   position: relative;
-  background-color: rgba(0 0 0 / 25%);
+  background-color: rgb(0 0 0 / 25%);
 }
 
 .carousel .carousel-navigation-buttons button:hover,
 .carousel .carousel-navigation-buttons button:focus-visible {
-  background-color: rgba(0 0 0 / 80%);
+  background-color: rgb(0 0 0 / 80%);
 }
 
 .carousel .carousel-navigation-buttons button::after {
@@ -143,7 +141,7 @@
   left: calc(50% - 3px);
 }
 
-@media (min-width: 600px) {
+@media (width >= 600px) {
   .carousel .carousel-navigation-buttons {
     left: 1rem;
     right: 1rem;
@@ -179,6 +177,7 @@
   gap: 22px;
 }
 
+/* stylelint-disable-next-line no-descending-specificity -- disjoint ancestor chain, cannot match the same element */
 .carousel.listing .carousel-slide {
   display: block;
   flex: 0 0 82%;
@@ -220,6 +219,7 @@
   transition: transform 0.5s;
 }
 
+/* stylelint-disable-next-line no-descending-specificity -- disjoint ancestor chain, cannot match the same element */
 .carousel.listing .carousel-slide:hover img {
   transform: scale(1.06);
 }
@@ -260,6 +260,7 @@
   color: inherit;
 }
 
+/* stylelint-disable-next-line no-descending-specificity -- disjoint ancestor chain, cannot match the same element */
 .carousel.listing .listing-body p {
   margin: 0;
   font-size: 13px;
@@ -325,6 +326,7 @@
   right: -18px;
 }
 
+/* stylelint-disable-next-line no-descending-specificity -- disjoint ancestor chain, cannot match the same element */
 .carousel.listing .carousel-navigation-buttons button {
   width: 44px;
   height: 44px;
@@ -334,10 +336,12 @@
   box-shadow: 0 3px 12px rgb(0 0 0 / 16%);
 }
 
+/* stylelint-disable no-descending-specificity -- disjoint ancestor chain, cannot match the same element */
 .carousel.listing .carousel-navigation-buttons button:hover,
 .carousel.listing .carousel-navigation-buttons button:focus-visible {
   background-color: var(--color-bg-light);
 }
+/* stylelint-enable no-descending-specificity */
 
 .carousel.listing .carousel-navigation-buttons button::after {
   border-color: var(--color-text);
@@ -345,6 +349,7 @@
   height: 0.6rem;
 }
 
+/* stylelint-disable-next-line no-descending-specificity -- disjoint ancestor chain, cannot match the same element */
 .carousel.listing .carousel-navigation-buttons button:disabled {
   opacity: 0.35;
   cursor: default;

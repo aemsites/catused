@@ -38,6 +38,88 @@ if (window.trustedTypes && window.trustedTypes.createPolicy) {
 }
 
 /**
+ * Origin that serves product-pipeline output.
+ */
+const PIPELINE_ORIGIN = 'https://main--catused--aemsites.aem.network';
+const IS_PIPELINE_HOST = window.location.hostname.endsWith('.aem.network')
+  || window.location.hostname.endsWith('catused.cat.com');
+
+/**
+ * True when the current document is a rendered product page.
+ *
+ * The pipeline writes `<meta name="sku">`; nothing else on the site does.
+ * @returns {boolean}
+ */
+function isProductPage() {
+  return !!document.querySelector('meta[name="sku"]');
+}
+
+/**
+ * True when this host needs the product document fetched before it can render.
+ * @returns {boolean}
+ */
+function needsPDPSimulation() {
+  return !IS_PIPELINE_HOST
+    && window.location.pathname.startsWith('/products/')
+    && !isProductPage();
+}
+
+/**
+ * Raises the priority of the PDP hero image.
+ *
+ * The product pipeline emits every image with `loading="lazy"`, including the
+ * first one, so the browser's preload scanner deliberately skips it. Nothing
+ * fetches the LCP candidate until something flips it back to eager.
+ *
+ * Called from the first line of `loadEager`, before any `await`, which is
+ * effectively as early as module top-level -- `loadPage()` runs at the bottom of
+ * this module, so only function declarations separate the two. A
+ * `<link rel=preload>` is injected alongside the attribute flip because the link
+ * starts fetching immediately, whereas the `<img>` cannot begin until style and
+ * layout have resolved which `<source>` applies.
+ *
+ * `blocks/pdp/pdp.js` then *moves* this element into the gallery instead of
+ * cloning it, so the in-flight request is never orphaned and the painted node
+ * is the one already being fetched.
+ */
+function prioritizeHeroImage() {
+  const picture = document.querySelector('main picture');
+  const img = picture?.querySelector('img');
+  if (!img) return;
+
+  img.setAttribute('loading', 'eager');
+  img.setAttribute('fetchpriority', 'high');
+  picture.dataset.lcp = 'true';
+
+  // Emit one preload per <source>, carrying its media query, so the browser
+  // preloads exactly the variant it will render. Preloading a single source
+  // without its media condition downloads the hero twice -- once for the
+  // preload, once for the <picture> the viewport actually matches.
+  const sources = [...picture.querySelectorAll('source[type="image/webp"]')];
+  if (sources.length) {
+    sources.forEach((source) => {
+      const link = document.createElement('link');
+      link.rel = 'preload';
+      link.as = 'image';
+      link.setAttribute('fetchpriority', 'high');
+      link.type = source.type;
+      link.imageSrcset = source.srcset;
+      if (source.media) link.media = source.media;
+      else link.media = 'not all and (min-width: 600px)';
+      document.head.append(link);
+    });
+    return;
+  }
+
+  const link = document.createElement('link');
+  link.rel = 'preload';
+  link.as = 'image';
+  link.setAttribute('fetchpriority', 'high');
+  link.href = img.getAttribute('src');
+  document.head.append(link);
+}
+
+/**
  * Returns the two-letter language code for the current page.
  * @returns {string}
  */
@@ -147,11 +229,42 @@ function buildWidgetAutoBlocks(main) {
 }
 
 /**
+ * Wraps the product-pipeline markup in a `pdp` block.
+ *
+ * The pipeline renders a flat document -- an `<h1>`, a price paragraph, then one
+ * paragraph per image. Everything else the page needs lives in the JSON-LD,
+ * which `blocks/pdp/pdp.js` reads.
+ *
+ * @param {Element} main The container element
+ */
+function buildPDPBlock(main) {
+  // `loadFragment` also runs `decorateMain` over nav and footer fragments, so
+  // identity-check the document's own <main> rather than trusting the sku meta
+  // tag, which is global. Without this the block is rebuilt inside the header.
+  if (main !== document.querySelector('main')) return;
+  if (!isProductPage()) return;
+  if (main.querySelector('.pdp')) return;
+
+  const content = [...main.querySelectorAll(':scope > div')];
+  if (!content.length) return;
+
+  document.body.classList.add('pdp-template');
+
+  // Collapse every pipeline div into one block: the first holds the heading,
+  // price and images, any that follow hold the rendered `description`.
+  const section = document.createElement('div');
+  section.append(buildBlock('pdp', { elems: content.flatMap((div) => [...div.children]) }));
+  content[0].replaceWith(section);
+  content.slice(1).forEach((div) => div.remove());
+}
+
+/**
  * Builds all synthetic blocks in a container element.
  * @param {Element} main The container element
  */
 function buildAutoBlocks(main) {
   try {
+    buildPDPBlock(main);
     // auto load `*/fragments/*` references
     const fragments = [...main.querySelectorAll('a[href*="/fragments/"]')].filter((f) => !f.closest('.fragment'));
     if (fragments.length > 0) {
@@ -263,6 +376,46 @@ function decorateSectionBackgrounds(main) {
 }
 
 /**
+ * Renders a product page on hosts that do not proxy the product pipeline.
+ *
+ * `aem.page`, `aem.live` and localhost serve the authored site, not the pipeline
+ * output, so a `/products/*` URL returns a 404 shell with no product markup.
+ * This fetches the rendered page from `aem.network` and swaps it in, giving the
+ * same document the pipeline would have served.
+ *
+ * @returns {Promise<boolean>} true when a product document was substituted.
+ */
+async function simulatePDPPreview() {
+  const { pathname } = window.location;
+  try {
+    const resp = await fetch(`${PIPELINE_ORIGIN}${pathname}`);
+    if (!resp.ok) return false;
+
+    const dom = new DOMParser().parseFromString(await resp.text(), 'text/html');
+    if (!dom.querySelector('meta[name="sku"]')) return false;
+
+    // Relative media paths resolve against the pipeline origin, not this host.
+    dom.querySelectorAll('main [src^="./media_"]').forEach((el) => {
+      el.setAttribute('src', el.getAttribute('src').replace('./', `${PIPELINE_ORIGIN}/products/`));
+    });
+    dom.querySelectorAll('main [srcset^="./media_"]').forEach((el) => {
+      el.setAttribute('srcset', el.getAttribute('srcset').replace('./', `${PIPELINE_ORIGIN}/products/`));
+    });
+
+    // Keep the authored header/footer; replace only the product content and the
+    // head metadata the block reads.
+    document.querySelector('main').replaceWith(dom.querySelector('main'));
+    dom.head.querySelectorAll('meta[name="sku"], meta[name="type"], script[type="application/ld+json"]')
+      .forEach((el) => document.head.append(el));
+    return true;
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('PDP preview simulation failed', error);
+    return false;
+  }
+}
+
+/**
  * Decorates the main element.
  * @param {Element} main The main element
  */
@@ -282,7 +435,16 @@ export function decorateMain(main) {
  */
 async function loadEager(doc) {
   document.documentElement.lang = 'en';
+
+  // Product pages only exist on the pipeline origin; everywhere else, fetch the
+  // rendered document before decorating so the block has markup to work with.
+  if (needsPDPSimulation()) await simulatePDPPreview();
+
+  // Scoped to product pages, and ahead of everything else on them.
+  if (isProductPage()) prioritizeHeroImage();
+
   decorateTemplateAndTheme();
+
   const main = doc.querySelector('main');
   if (main) {
     decorateMain(main);
