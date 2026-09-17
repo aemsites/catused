@@ -1024,7 +1024,7 @@
     padding: 0 0 var(--space-400);
     background: none;
   }
-  .pdp-back { display: none; }
+  .pdp .pdp-back { display: none; }
   .pdp-header-row { justify-content: flex-start; }
 
   .pdp-title {

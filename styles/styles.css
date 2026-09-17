@@ -167,7 +167,10 @@ body.appear {
   display: block;
 }
 
-header {
+/* Scoped to the site header: a bare `header` selector also matches any <header>
+   a block renders inside <main>, clamping it to the nav height and clipping its
+   content. */
+body > header {
   height: var(--nav-height);
 }
 
