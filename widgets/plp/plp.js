@@ -15,6 +15,9 @@ import {
   formatYear,
   loadCurrencyRates,
   loadProducts,
+  loadCategories,
+  impliedCategoryScope,
+  isCategoryListing,
   subscribeProducts,
   priceUsd,
   readPlpParams,
@@ -234,11 +237,15 @@ function renderCard(item, copy, rates, terms = []) {
  */
 export default async function decorate(widget) {
   await loadCSS(`${window.hlx?.codeBasePath || ''}/styles/product-search.css`);
-  const [copy, rates] = await Promise.all([
+  const listingPath = window.location.pathname;
+  const categoryPage = isCategoryListing(listingPath);
+  const [copy, rates, categories] = await Promise.all([
     loadCopy(import.meta.url),
     loadCurrencyRates(),
+    categoryPage ? loadCategories() : Promise.resolve([]),
   ]);
   const products = loadProducts();
+  const categoryScope = impliedCategoryScope(listingPath, categories);
   hydrateCopy(widget, copy);
 
   const form = widget.querySelector('form');
@@ -285,6 +292,7 @@ export default async function decorate(widget) {
     yearMax: yearRange.max,
     page,
     rates,
+    categoryScope,
   });
 
   const refreshFacets = () => {

@@ -1,6 +1,7 @@
 import { fetchJson } from './scripts.js';
 
 export const PRODUCTS_INDEX = 'https://main--catused--aemsites.aem.network/products/index.json';
+export const CATEGORIES_INDEX = new URL('/categories.json', PRODUCTS_INDEX).href;
 export const HOURS_STEP = 500;
 export const HOURS_CAP = 10000;
 export const PRICE_STEP = 10000;
@@ -167,6 +168,155 @@ export function priceUsd(item, rates) {
 }
 
 /**
+ * Loads the category tree used to scope PLP listings by pathname.
+ * Only needed on `/categories/…` pages. Prefers same-origin `/categories.json`.
+ * @returns {Promise<Array<{ path: string, title: string }>>}
+ */
+export async function loadCategories() {
+  if (Array.isArray(window.categoryIndex)) return window.categoryIndex;
+  if (!window.categoryIndexPromise) {
+    window.categoryIndexPromise = (async () => {
+      try {
+        const local = `${window.location.origin}/categories.json`;
+        let json;
+        try {
+          const resp = await fetch(local);
+          if (resp.ok) json = await resp.json();
+        } catch {
+          json = null;
+        }
+        if (!json) json = await fetchJson(CATEGORIES_INDEX);
+        window.categoryIndex = Array.isArray(json.data) ? json.data : [];
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error('failed to load categories', error);
+        window.categoryIndex = [];
+      }
+      return window.categoryIndex;
+    })();
+  }
+  return window.categoryIndexPromise;
+}
+
+/**
+ * @param {string} value
+ * @returns {string}
+ */
+function normalizePath(value) {
+  return String(value || '').replace(/^\/+|\/+$/g, '').toLowerCase();
+}
+
+/**
+ * @param {string} value
+ * @returns {string}
+ */
+function slugify(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+/**
+ * Path after the `/categories/` prefix, if present.
+ * @param {string} pathname
+ * @returns {string}
+ */
+function categoryRemainder(pathname) {
+  const page = normalizePath(pathname);
+  const prefix = 'categories/';
+  const at = page.indexOf(prefix);
+  if (at === -1) return '';
+  return page.slice(at + prefix.length);
+}
+
+/**
+ * True when the page URL is a category listing (`/categories/…`).
+ * @param {string} [pathname]
+ * @returns {boolean}
+ */
+export function isCategoryListing(pathname = window.location.pathname) {
+  return Boolean(categoryRemainder(pathname));
+}
+
+/**
+ * @param {Set<string>} keys
+ * @param {string} value
+ */
+function addScopeKey(keys, value) {
+  const text = String(value || '').trim().toLowerCase();
+  if (!text) return;
+  keys.add(text);
+  keys.add(slugify(text));
+  keys.add(text.replace(/-/g, ' '));
+}
+
+/**
+ * Longest category path covered by the page URL after `/categories/`.
+ * @param {string} pathname
+ * @param {Array<{ path: string, title: string }>} categories
+ * @returns {{ path: string, title: string }|null}
+ */
+export function matchCategoryPath(pathname, categories) {
+  const remainder = categoryRemainder(pathname);
+  if (!remainder || !categories?.length) return null;
+  let best = null;
+  let bestLen = -1;
+  categories.forEach((category) => {
+    const path = normalizePath(category.path);
+    if (!path) return;
+    if (remainder === path || remainder.startsWith(`${path}/`)) {
+      if (path.length > bestLen) {
+        best = category;
+        bestLen = path.length;
+      }
+    }
+  });
+  return best;
+}
+
+/**
+ * Titles and slugs for the matched category and its descendants.
+ * Returns null when the URL is not under `/categories/`.
+ * @param {string} pathname
+ * @param {Array<{ path: string, title: string }>} categories
+ * @returns {Set<string>|null}
+ */
+export function impliedCategoryScope(pathname, categories) {
+  const remainder = categoryRemainder(pathname);
+  if (!remainder) return null;
+
+  const matched = matchCategoryPath(pathname, categories);
+  const prefix = normalizePath(matched?.path || remainder);
+  const keys = new Set();
+  addScopeKey(keys, remainder);
+  remainder.split('/').forEach((part) => addScopeKey(keys, part));
+
+  (categories || []).forEach((category) => {
+    const path = normalizePath(category.path);
+    if (path !== prefix && !path.startsWith(`${prefix}/`)) return;
+    addScopeKey(keys, category.title);
+    addScopeKey(keys, path);
+    addScopeKey(keys, path.split('/').pop());
+  });
+  return keys;
+}
+
+/**
+ * @param {Object} item
+ * @param {Set<string>|null} scope
+ * @returns {boolean}
+ */
+function inCategoryScope(item, scope) {
+  if (!scope) return true;
+  const type = String(item.product_type || '').trim();
+  if (!type) return false;
+  return scope.has(type.toLowerCase()) || scope.has(slugify(type));
+}
+
+/**
  * Filters products by query, ranges, and discrete facets.
  * @param {Array<Object>} products
  * @param {Object} filters
@@ -183,11 +333,13 @@ export function filterProducts(products, {
   category = '',
   brand = '',
   country = '',
+  categoryScope = null,
   rates = { USD: 1 },
 } = {}) {
   const terms = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
 
   return products.filter((item) => {
+    if (!inCategoryScope(item, categoryScope)) return false;
     if (terms.length) {
       const haystack = [item.title, item.product_type, item.sku, item.brand]
         .join(' ')
