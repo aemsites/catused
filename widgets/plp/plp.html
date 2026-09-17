@@ -1,0 +1,142 @@
+<div class="plp-layout">
+  <aside class="sidebar" id="plp-sidebar">
+    <div class="drawer-close">
+      <h2 data-copy="filterEquipment">Filter Equipment</h2>
+      <button type="button" class="drawer-close-btn" data-copy="closeFilters" data-copy-target="aria-label" aria-label="Close filters"></button>
+    </div>
+    <div class="filter-head">
+      <h1 data-copy="filter">Filter</h1>
+    </div>
+    <div class="filter-actions">
+      <button type="button" class="text-btn clear-filters" data-copy="clearFilters">Clear Filters</button>
+    </div>
+    <div class="chips" hidden></div>
+
+    <div class="acc open">
+      <button type="button" class="acc-head" data-copy="category">Category</button>
+      <div class="acc-body">
+        <label class="vh" for="plp-category" data-copy="category">Category</label>
+        <select class="facet" id="plp-category" name="category"></select>
+      </div>
+    </div>
+
+    <div class="acc open">
+      <button type="button" class="acc-head" data-copy="brand">Brand</button>
+      <div class="acc-body">
+        <label class="vh" for="plp-brand" data-copy="brand">Brand</label>
+        <select class="facet" id="plp-brand" name="brand"></select>
+      </div>
+    </div>
+
+    <div class="acc open hours-field">
+      <button type="button" class="acc-head" data-copy="hours">Hours</button>
+      <div class="acc-body">
+        <div class="range-panel" id="hours-panel">
+          <div class="range-histogram" aria-hidden="true"></div>
+          <div class="range-slider">
+            <div class="range-rail" aria-hidden="true"><span class="range-rail-active"></span></div>
+            <input type="range" class="range-thumb range-thumb-min" aria-label="Minimum hours">
+            <input type="range" class="range-thumb range-thumb-max" aria-label="Maximum hours">
+          </div>
+          <div class="range-fields">
+            <label class="range-field">
+              <input type="text" inputmode="numeric" class="range-min-input" autocomplete="off">
+              <span data-copy="min">Min</span>
+            </label>
+            <label class="range-field">
+              <input type="text" inputmode="numeric" class="range-max-input" autocomplete="off">
+              <span data-copy="max">Max</span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="acc open">
+      <button type="button" class="acc-head" data-copy="year">Year</button>
+      <div class="acc-body">
+        <div class="minmax">
+          <label class="vh" for="plp-year-min" data-copy="min">Min</label>
+          <select class="facet" id="plp-year-min" name="yearMin"></select>
+          <span class="to" data-copy="to">to</span>
+          <label class="vh" for="plp-year-max" data-copy="max">Max</label>
+          <select class="facet" id="plp-year-max" name="yearMax"></select>
+        </div>
+      </div>
+    </div>
+
+    <div class="acc open price-field">
+      <button type="button" class="acc-head" data-copy="price">Price</button>
+      <div class="acc-body">
+        <div class="range-panel" id="price-panel">
+          <div class="range-histogram" aria-hidden="true"></div>
+          <div class="range-slider">
+            <div class="range-rail" aria-hidden="true"><span class="range-rail-active"></span></div>
+            <input type="range" class="range-thumb range-thumb-min" aria-label="Minimum price">
+            <input type="range" class="range-thumb range-thumb-max" aria-label="Maximum price">
+          </div>
+          <div class="range-fields">
+            <label class="range-field">
+              <input type="text" inputmode="numeric" class="range-min-input" autocomplete="off">
+              <span data-copy="min">Min</span>
+            </label>
+            <label class="range-field">
+              <input type="text" inputmode="numeric" class="range-max-input" autocomplete="off">
+              <span data-copy="max">Max</span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="acc open">
+      <button type="button" class="acc-head" data-copy="location">Location</button>
+      <div class="acc-body">
+        <label class="vh" for="plp-country" data-copy="location">Location</label>
+        <select class="facet" id="plp-country" name="country"></select>
+      </div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <form class="search-panel" data-copy="formLabel" data-copy-target="aria-label" aria-label="Search equipment">
+      <div class="search-row suggestions-anchor">
+        <label class="vh" for="plp-query" data-copy="searchEquipment">Search equipment</label>
+        <input
+          id="plp-query"
+          name="q"
+          type="text"
+          data-copy="searchPlaceholder"
+          data-copy-target="placeholder"
+          placeholder="Search by model or category"
+        >
+        <button type="button" class="clr" data-copy="clearSearch" data-copy-target="aria-label" aria-label="Clear search"></button>
+        <span class="divider"></span>
+        <button type="submit" class="go button accent" data-copy="search" data-copy-target="aria-label" aria-label="Search"></button>
+      </div>
+      <div class="results-row">
+        <span class="count" data-copy="results">0 results</span>
+        <label class="sortby">
+          <span data-copy="sortBy">Sort by</span>
+          <select id="plp-sort" name="sort">
+            <option value="relevance" data-copy="sortRelevance">Relevance</option>
+            <option value="price-asc" data-copy="sortPriceAsc">Price: Low to High</option>
+            <option value="price-desc" data-copy="sortPriceDesc">Price: High to Low</option>
+            <option value="year-desc" data-copy="sortYearDesc">Year: Newest</option>
+            <option value="hours-asc" data-copy="sortHoursAsc">Hours: Lowest</option>
+          </select>
+        </label>
+      </div>
+      <div class="mobile-bar">
+        <button type="button" class="btn-filter">
+          <span data-copy="filter">Filter</span>
+          <span class="n" hidden>0</span>
+        </button>
+        <span class="m-count" data-copy="results">0 results</span>
+      </div>
+    </form>
+    <div class="grid" id="plp-grid"></div>
+    <p class="empty" hidden data-copy="noResults">No results found</p>
+  </div>
+</div>
+<div class="scrim" hidden></div>
