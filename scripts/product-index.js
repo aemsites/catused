@@ -2,6 +2,7 @@ import { fetchJson } from './scripts.js';
 
 export const PRODUCTS_INDEX = 'https://main--catused--aemsites.aem.network/products/index.json';
 export const HOURS_STEP = 500;
+export const HOURS_CAP = 10000;
 export const PRICE_STEP = 5000;
 export const PRICE_CAP_USD = 200000;
 

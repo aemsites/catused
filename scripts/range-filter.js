@@ -26,6 +26,20 @@ function snapValue(value, domain, step) {
 }
 
 /**
+ * Largest number in a list without spreading (spread blows the stack on big arrays).
+ * @param {number[]} values
+ * @param {number} [fallback]
+ * @returns {number}
+ */
+function maxOf(values, fallback = 0) {
+  let max = fallback;
+  for (let i = 0; i < values.length; i += 1) {
+    if (values[i] > max) max = values[i];
+  }
+  return max;
+}
+
+/**
  * Slider/histogram domain: 0 to lastRegular, plus one over tick.
  * @param {number[]} values
  * @param {number} step
@@ -37,7 +51,7 @@ function valueDomain(values, step, cap) {
     const lastRegular = Math.max(step, Math.round(cap / step) * step);
     return { min: 0, max: lastRegular + step, lastRegular };
   }
-  const dataMax = values.length ? Math.max(...values) : 0;
+  const dataMax = maxOf(values, 0);
   const lastRegular = Math.max(step, Math.floor(dataMax / step) * step);
   return { min: 0, max: lastRegular + step, lastRegular };
 }
@@ -61,7 +75,7 @@ function buildHistogram(values, domain, step) {
     if (index < 0) index = 0;
     counts[index] += 1;
   });
-  const peak = Math.max(1, ...counts);
+  const peak = Math.max(1, maxOf(counts, 0));
   return counts.map((count, index) => {
     const start = min + index * step;
     const over = index === bins - 1;

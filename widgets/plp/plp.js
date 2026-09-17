@@ -1,6 +1,7 @@
 import { loadCopy, hydrateCopy } from '../../scripts/scripts.js';
 import { loadCSS } from '../../scripts/aem.js';
 import {
+  HOURS_CAP,
   HOURS_STEP,
   PRICE_CAP_USD,
   PRICE_STEP,
@@ -414,6 +415,7 @@ export default async function decorate(widget) {
       copy,
       inline: true,
       step: HOURS_STEP,
+      cap: HOURS_CAP,
       initial: { min: initial.hoursMin, max: initial.hoursMax },
       getValue: (item) => item.hours,
       formatValue: formatNumber,

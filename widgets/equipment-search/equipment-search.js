@@ -1,6 +1,7 @@
 import { loadCopy, hydrateCopy } from '../../scripts/scripts.js';
 import { loadCSS } from '../../scripts/aem.js';
 import {
+  HOURS_CAP,
   HOURS_STEP,
   PRICE_CAP_USD,
   PRICE_STEP,
@@ -75,6 +76,7 @@ export default async function decorate(widget) {
       products,
       copy,
       step: HOURS_STEP,
+      cap: HOURS_CAP,
       getValue: (item) => item.hours,
       formatValue: formatNumber,
       onChange: () => {
