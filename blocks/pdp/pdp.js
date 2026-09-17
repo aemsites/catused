@@ -7,91 +7,53 @@ import {
 } from './pdp-sections.js';
 
 /**
- * Horizontal swipe/drag navigation.
+ * Keeps the gallery dots and thumbnails in step with the scroll-snap track.
  *
- * Uses pointer events so touch, pen and mouse all work from one code path. The
- * gesture is only treated as a swipe when horizontal travel clearly dominates,
- * so vertical page scrolling is never hijacked.
- *
- * @param {Element|null} surface
- * @param {(delta: number) => void} step
- */
-function addSwipe(surface, step) {
-  if (!surface) return;
-
-  const THRESHOLD = 40;
-  let startX = 0;
-  let startY = 0;
-  let tracking = false;
-
-  surface.addEventListener('pointerdown', (event) => {
-    if (event.pointerType === 'mouse' && event.button !== 0) return;
-    startX = event.clientX;
-    startY = event.clientY;
-    tracking = true;
-  });
-
-  const finish = (event) => {
-    if (!tracking) return;
-    tracking = false;
-    const dx = event.clientX - startX;
-    const dy = event.clientY - startY;
-    if (Math.abs(dx) < THRESHOLD || Math.abs(dx) <= Math.abs(dy)) return;
-    step(dx < 0 ? 1 : -1);
-  };
-
-  surface.addEventListener('pointerup', finish);
-  surface.addEventListener('pointercancel', () => { tracking = false; });
-}
-
-/**
- * Wires the gallery thumbnails, dots and arrows to swap the hero image.
- *
- * Swapping updates the existing hero `<img>`/`<source>` attributes rather than
- * replacing the element, so the LCP node stays stable for the whole session.
+ * The gesture itself is entirely native: the track is a horizontally scrollable
+ * element with `scroll-snap-type`, so dragging, momentum, rubber-banding at the
+ * ends and snapping all come from the browser. This only reflects the resulting
+ * scroll position back into the controls, and drives the track when a dot,
+ * thumbnail or arrow is used.
  *
  * @param {HTMLElement} block
  */
 function decorateGalleryInteractions(block) {
-  const hero = block.querySelector('.pdp-gallery-hero picture');
+  const track = block.querySelector('.pdp-gallery-track');
+  const slides = [...block.querySelectorAll('.pdp-gallery-slide')];
   const thumbs = [...block.querySelectorAll('.pdp-thumb')];
   const dots = [...block.querySelectorAll('.pdp-dot')];
-  if (!hero || thumbs.length < 2) return;
+  if (!track || slides.length < 2) return;
 
-  const show = (index) => {
-    const source = thumbs[index]?.querySelector('picture');
-    if (!source) return;
-
-    const nextSources = source.querySelectorAll('source');
-    hero.querySelectorAll('source').forEach((element, i) => {
-      if (nextSources[i]) element.setAttribute('srcset', nextSources[i].getAttribute('srcset'));
-    });
-
-    const heroImg = hero.querySelector('img');
-    const nextImg = source.querySelector('img');
-    if (heroImg && nextImg) {
-      heroImg.setAttribute('src', nextImg.getAttribute('src'));
-      heroImg.setAttribute('alt', nextImg.getAttribute('alt') || '');
-    }
-
+  const mark = (index) => {
     thumbs.forEach((thumb, i) => thumb.classList.toggle('is-active', i === index));
     dots.forEach((dot, i) => dot.classList.toggle('is-active', i === index));
   };
 
-  const step = (delta) => {
-    const current = thumbs.findIndex((thumb) => thumb.classList.contains('is-active'));
-    show((current + delta + thumbs.length) % thumbs.length);
+  const goTo = (index) => {
+    const target = Math.max(0, Math.min(index, slides.length - 1));
+    track.scrollTo({ left: target * track.clientWidth, behavior: 'smooth' });
   };
 
-  thumbs.forEach((thumb, i) => thumb.addEventListener('click', () => show(i)));
-  dots.forEach((dot, i) => dot.addEventListener('click', () => show(i)));
+  // Reading scroll position inside rAF keeps layout reads off the scroll event.
+  let queued = false;
+  track.addEventListener('scroll', () => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => {
+      queued = false;
+      mark(Math.round(track.scrollLeft / track.clientWidth));
+    });
+  }, { passive: true });
 
-  // Arrows are desktop-only in the design; mobile navigates by swipe and dots.
+  thumbs.forEach((thumb, i) => thumb.addEventListener('click', () => goTo(i)));
+  dots.forEach((dot, i) => dot.addEventListener('click', () => goTo(i)));
+
   block.querySelectorAll('.pdp-gallery-arrow').forEach((arrow, i) => {
-    arrow.addEventListener('click', () => step(i === 0 ? -1 : 1));
+    arrow.addEventListener('click', () => {
+      const current = Math.round(track.scrollLeft / track.clientWidth);
+      goTo(current + (i === 0 ? -1 : 1));
+    });
   });
-
-  addSwipe(hero.closest('.pdp-gallery-hero'), step);
 }
 
 /**
@@ -136,24 +98,50 @@ function decorateReportViewAll(block) {
 }
 
 /**
- * Slides the sticky purchase bar out of the way once the footer is reached.
+ * Controls the sticky purchase bar across three states.
  *
- * Uses an IntersectionObserver on the footer rather than a scroll listener, so
- * the work happens off the main thread and there is nothing to throttle. The bar
- * returns as soon as the footer leaves the viewport again.
+ * 1. Hidden while the inline "Contact Dealer" button is still reachable -- the
+ *    bar would only duplicate a call to action already on screen.
+ * 2. Shown once that button has scrolled *above* the viewport, and it stays
+ *    shown regardless of scroll direction. Direction-aware hiding is the
+ *    convention for navigation, but on a product page scrolling down is the
+ *    dominant direction, so it would withdraw the call to action from exactly
+ *    the engaged readers most likely to act on it.
+ * 3. Tucked away again once the footer appears, so the page end is reachable.
+ *
+ * Both triggers are IntersectionObservers rather than scroll listeners, so the
+ * work stays off the main thread and there is nothing to throttle.
  *
  * @param {HTMLElement} block
  */
 function decorateStickyBar(block) {
   const bar = block.querySelector('.pdp-sticky');
+  if (!bar || !window.IntersectionObserver) return;
+
+  const inlineCta = block.querySelector('.pdp-dealer-cta');
+  if (inlineCta) {
+    // Start hidden: the observer's first callback is asynchronous, and without
+    // this the bar paints once before being told to hide.
+    bar.classList.add('is-hidden');
+
+    // Extending the root far below the viewport turns this into a position test
+    // rather than a visibility test: the button intersects whenever it sits at
+    // or below the viewport top, and stops the moment it scrolls above it.
+    // Observing plain visibility is unreliable here, because a fast fling or an
+    // anchor jump can carry the button from below the fold to above it without
+    // it ever being sampled on screen, so `isIntersecting` never changes and no
+    // callback fires.
+    new IntersectionObserver(([entry]) => {
+      bar.classList.toggle('is-hidden', entry.isIntersecting);
+    }, { rootMargin: '0px 0px 100000px 0px' }).observe(inlineCta);
+  }
+
   const footer = document.querySelector('body > footer');
-  if (!bar || !footer || !window.IntersectionObserver) return;
-
-  const observer = new IntersectionObserver(([entry]) => {
-    bar.classList.toggle('is-tucked', entry.isIntersecting);
-  }, { threshold: 0 });
-
-  observer.observe(footer);
+  if (footer) {
+    new IntersectionObserver(([entry]) => {
+      bar.classList.toggle('is-tucked', entry.isIntersecting);
+    }, { threshold: 0 }).observe(footer);
+  }
 }
 
 /**

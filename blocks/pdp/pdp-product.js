@@ -143,17 +143,40 @@ export function buildGallery(pictures, title) {
   gallery.className = 'pdp-gallery';
 
   const hero = add('div', 'pdp-gallery-hero', gallery);
-  const [first] = pictures;
 
-  if (first) {
-    const img = first.querySelector('img');
-    if (img) {
-      img.setAttribute('loading', 'eager');
-      img.setAttribute('fetchpriority', 'high');
-      if (!img.getAttribute('alt')) img.setAttribute('alt', title);
+  // A native scroll-snap track, so the drag, momentum, rubber-banding and snap
+  // are all the browser's and stay on the compositor. JavaScript only keeps the
+  // dots in sync.
+  const track = add('div', 'pdp-gallery-track', hero);
+  track.tabIndex = 0;
+  track.setAttribute('role', 'group');
+  track.setAttribute('aria-label', `${title} images`);
+
+  pictures.slice(0, GALLERY_WINDOW).forEach((picture, i) => {
+    const slide = add('div', 'pdp-gallery-slide', track);
+    if (i === 0) {
+      // Moved, never cloned: scripts.js has already flipped this one to eager
+      // and preloaded it, so the request is in flight. Cloning would orphan it
+      // and register the LCP element against a node created later.
+      const img = picture.querySelector('img');
+      if (img) {
+        img.setAttribute('loading', 'eager');
+        img.setAttribute('fetchpriority', 'high');
+        if (!img.getAttribute('alt')) img.setAttribute('alt', title);
+      }
+      slide.append(picture);
+      return;
     }
-    hero.append(first); // move, not clone
-  }
+    const clone = picture.cloneNode(true);
+    const img = clone.querySelector('img');
+    if (img) {
+      img.setAttribute('loading', 'lazy');
+      img.removeAttribute('fetchpriority');
+    }
+    slide.append(clone);
+  });
+
+  // Outside the track so it stays put while the photos move.
   addCertifiedBadge(hero);
 
   // Dots centre in the viewport while "View All" sits at the right gutter, so

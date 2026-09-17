@@ -178,9 +178,27 @@
   aspect-ratio: 4 / 3;
   overflow: hidden;
   background: var(--color-gray-5);
+}
 
-  /* Vertical scrolling stays native; horizontal drags reach the swipe handler. */
-  touch-action: pan-y;
+/* The browser owns the gesture: drag, momentum, rubber-banding and snap. */
+.pdp-gallery-track {
+  display: flex;
+  height: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+
+.pdp-gallery-track::-webkit-scrollbar {
+  display: none;
+}
+
+.pdp-gallery-slide {
+  flex: 0 0 100%;
+  height: 100%;
+  scroll-snap-align: center;
+  scroll-snap-stop: always;
 }
 
 .pdp-gallery-hero img {
@@ -188,8 +206,14 @@
   -webkit-user-drag: none;
 }
 
-.pdp-gallery-hero picture,
-.pdp-gallery-hero img {
+@media (prefers-reduced-motion: reduce) {
+  .pdp-gallery-track {
+    scroll-behavior: auto;
+  }
+}
+
+.pdp-gallery-slide picture,
+.pdp-gallery-slide img {
   display: block;
   width: 100%;
   height: 100%;
@@ -1451,7 +1475,9 @@ html.pdp-dialog-open body {
   overflow: hidden;
 }
 
-/* Tucked away once the footer scrolls into view, so the page end is reachable. */
+/* Off-screen while the inline call to action is still reachable, and again once
+   the footer scrolls into view. */
+.pdp-sticky.is-hidden,
 .pdp-sticky.is-tucked {
   transform: translateY(100%);
 }
