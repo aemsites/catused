@@ -9,6 +9,7 @@ export const YEAR_STEP = 1;
 export const YEAR_MIN = 2000;
 export const YEAR_MAX = 2026;
 const INDEX_PAGE_SIZE = 1000;
+const INDEX_CONCURRENCY = 5;
 const productListeners = new Set();
 let firstPagePromise;
 
@@ -55,8 +56,31 @@ function notifyProductListeners() {
 }
 
 /**
- * Loads the products index in pages of 1000. Resolves after the first page so
- * widgets can render, then keeps appending in the background.
+ * @param {number} offset
+ * @returns {Promise<{ offset: number, chunk: Array<Object>, total: number }>}
+ */
+async function fetchIndexPage(offset) {
+  const json = await fetchJson(indexPageUrl(offset));
+  return {
+    offset,
+    chunk: Array.isArray(json.data) ? json.data : [],
+    total: Number(json.total),
+  };
+}
+
+/**
+ * @param {{ offset: number, chunk: Array<Object> }} page
+ */
+function applyIndexPage(page) {
+  if (!page.chunk.length) return;
+  window.productIndex.push(...page.chunk);
+  sortByImage(window.productIndex);
+  notifyProductListeners();
+}
+
+/**
+ * Loads the products index in pages of 1000 with five fetches in flight.
+ * Resolves after the first page so widgets can render, then keeps appending.
  * @returns {Promise<Array<Object>>}
  */
 export async function loadProducts() {
@@ -70,24 +94,33 @@ export async function loadProducts() {
     });
 
     window.productIndexPromise = (async () => {
-      try {
-        let offset = 0;
-        let total = Infinity;
-        while (offset < total) {
-          // Sequential pages so the UI can update after each chunk.
+      let nextOffset = 0;
+      let total = Infinity;
+
+      const worker = async () => {
+        while (nextOffset < total) {
+          const offset = nextOffset;
+          nextOffset += INDEX_PAGE_SIZE;
+          // Sliding window: each worker starts the next page as soon as it is free.
           // eslint-disable-next-line no-await-in-loop
-          const json = await fetchJson(indexPageUrl(offset));
-          const chunk = Array.isArray(json.data) ? json.data : [];
-          const reported = Number(json.total);
-          if (Number.isFinite(reported) && reported >= 0) total = reported;
-          window.productIndex.push(...chunk);
-          sortByImage(window.productIndex);
-          notifyProductListeners();
-          firstPageDone();
-          if (!chunk.length || chunk.length < INDEX_PAGE_SIZE) break;
-          offset += INDEX_PAGE_SIZE;
+          const page = await fetchIndexPage(offset);
+          if (Number.isFinite(page.total) && page.total >= 0) {
+            total = Math.min(total, page.total);
+          }
+          if (!page.chunk.length || page.chunk.length < INDEX_PAGE_SIZE) {
+            total = Math.min(total, offset + page.chunk.length);
+          }
+          if (offset < total) applyIndexPage(page);
+          if (offset === 0) firstPageDone();
         }
+      };
+
+      const workers = Array.from({ length: INDEX_CONCURRENCY }, worker);
+      try {
+        await Promise.all(workers);
       } catch (error) {
+        total = 0;
+        await Promise.allSettled(workers);
         // eslint-disable-next-line no-console
         console.error('failed to load products index', error);
       }
