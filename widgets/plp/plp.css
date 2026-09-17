@@ -642,7 +642,6 @@
   }
 
   .plp .grid {
-    grid-template-columns: 1fr;
     margin-top: 16px;
   }
 
@@ -660,5 +659,11 @@
 
   .plp .scrim[hidden] {
     display: none;
+  }
+}
+
+@media (width < 600px) {
+  .plp .grid {
+    grid-template-columns: 1fr;
   }
 }

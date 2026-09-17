@@ -229,11 +229,11 @@ function renderCard(item, copy, rates, terms = []) {
  */
 export default async function decorate(widget) {
   await loadCSS(`${window.hlx?.codeBasePath || ''}/styles/product-search.css`);
-  const [copy, products, rates] = await Promise.all([
+  const [copy, rates] = await Promise.all([
     loadCopy(import.meta.url),
-    loadProducts(),
     loadCurrencyRates(),
   ]);
+  const products = loadProducts();
   hydrateCopy(widget, copy);
 
   const form = widget.querySelector('form');
@@ -573,9 +573,9 @@ export default async function decorate(widget) {
     });
   }
 
-  applyFilters();
   subscribeProducts(() => {
     refreshFacets();
     applyFilters({ resetPage: false });
   });
+  applyFilters();
 }

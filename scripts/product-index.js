@@ -11,7 +11,6 @@ export const YEAR_MAX = 2026;
 const INDEX_PAGE_SIZE = 1000;
 const INDEX_CONCURRENCY = 5;
 const productListeners = new Set();
-let firstPagePromise;
 
 /**
  * Whether a product has a usable image URL.
@@ -79,61 +78,60 @@ function applyIndexPage(page) {
 }
 
 /**
- * Loads the products index in pages of 1000 with five fetches in flight.
- * Resolves after the first page so widgets can render, then keeps appending.
- * @returns {Promise<Array<Object>>}
+ * Starts (or continues) loading the products index in the background.
+ * Five fetches stay in flight; the shared array is updated as pages arrive.
  */
-export async function loadProducts() {
+function startIndexLoad() {
   if (!Array.isArray(window.productIndex)) window.productIndex = [];
-  if (window.productIndexComplete) return window.productIndex;
+  if (window.productIndexComplete || window.productIndexPromise) return;
 
-  if (!window.productIndexPromise) {
-    let firstPageDone;
-    firstPagePromise = new Promise((resolve) => {
-      firstPageDone = resolve;
-    });
+  window.productIndexPromise = (async () => {
+    let nextOffset = 0;
+    let total = Infinity;
 
-    window.productIndexPromise = (async () => {
-      let nextOffset = 0;
-      let total = Infinity;
-
-      const worker = async () => {
-        while (nextOffset < total) {
-          const offset = nextOffset;
-          nextOffset += INDEX_PAGE_SIZE;
-          // Sliding window: each worker starts the next page as soon as it is free.
-          // eslint-disable-next-line no-await-in-loop
-          const page = await fetchIndexPage(offset);
-          if (Number.isFinite(page.total) && page.total >= 0) {
-            total = Math.min(total, page.total);
-          }
-          if (!page.chunk.length || page.chunk.length < INDEX_PAGE_SIZE) {
-            total = Math.min(total, offset + page.chunk.length);
-          }
-          if (offset < total) applyIndexPage(page);
-          if (offset === 0) firstPageDone();
+    const worker = async () => {
+      while (nextOffset < total) {
+        const offset = nextOffset;
+        nextOffset += INDEX_PAGE_SIZE;
+        // Sliding window: each worker starts the next page as soon as it is free.
+        // eslint-disable-next-line no-await-in-loop
+        const page = await fetchIndexPage(offset);
+        if (Number.isFinite(page.total) && page.total >= 0) {
+          total = Math.min(total, page.total);
         }
-      };
-
-      const workers = Array.from({ length: INDEX_CONCURRENCY }, worker);
-      try {
-        await Promise.all(workers);
-      } catch (error) {
-        total = 0;
-        await Promise.allSettled(workers);
-        // eslint-disable-next-line no-console
-        console.error('failed to load products index', error);
+        if (!page.chunk.length || page.chunk.length < INDEX_PAGE_SIZE) {
+          total = Math.min(total, offset + page.chunk.length);
+        }
+        if (offset < total) applyIndexPage(page);
       }
-      window.productIndexComplete = true;
-      notifyProductListeners();
-      firstPageDone();
-      return window.productIndex;
-    })();
-  }
+    };
 
-  await firstPagePromise;
+    const workers = Array.from({ length: INDEX_CONCURRENCY }, worker);
+    try {
+      await Promise.all(workers);
+    } catch (error) {
+      total = 0;
+      await Promise.allSettled(workers);
+      // eslint-disable-next-line no-console
+      console.error('failed to load products index', error);
+    }
+    window.productIndexComplete = true;
+    notifyProductListeners();
+    return window.productIndex;
+  })();
+}
+
+/**
+ * Returns the shared products array immediately and loads the index in the
+ * background. Subscribe with `subscribeProducts` to render as pages arrive.
+ * @returns {Array<Object>}
+ */
+export function loadProducts() {
+  startIndexLoad();
   return window.productIndex;
 }
+
+startIndexLoad();
 
 /**
  * Loads rough FX rates (units of each currency per 1 USD).
