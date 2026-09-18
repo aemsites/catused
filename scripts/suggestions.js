@@ -1,5 +1,5 @@
 import { loadCSS } from './aem.js';
-import { filterProducts } from './product-index.js';
+import { watchCatalog } from './product-index.js';
 
 const SUGGESTIONS_DEBOUNCE_MS = 150;
 const SUGGESTIONS_PREVIEW = 4;
@@ -56,55 +56,6 @@ export function highlightTerms(text, terms) {
 }
 
 /**
- * Unique values that contain every search term.
- * @param {string[]} values
- * @param {string[]} terms
- * @returns {string[]}
- */
-function matchingUniques(values, terms) {
-  const seen = new Set();
-  const out = [];
-  values.forEach((value) => {
-    const text = (value || '').trim();
-    if (!text) return;
-    const key = text.toLowerCase();
-    if (seen.has(key)) return;
-    if (!terms.every((term) => key.includes(term))) return;
-    seen.add(key);
-    out.push(text);
-  });
-  return out;
-}
-
-/**
- * Builds grouped typeahead suggestions from the product index.
- * @param {Array<Object>} products
- * @param {string} query
- * @returns {{ terms: string[], keywords: string[], equipment: Array<Object>,
- *   categories: string[] }}
- */
-function buildSuggestions(products, query) {
-  const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  if (!terms.length) {
-    return {
-      terms, keywords: [], equipment: [], categories: [],
-    };
-  }
-  const equipment = filterProducts(products, { q: query });
-  const keywords = matchingUniques(
-    equipment.flatMap((item) => [
-      item.product_type,
-      (item.title || '').replace(/^\d{4}\s+/, ''),
-    ]),
-    terms,
-  );
-  const categories = matchingUniques(equipment.map((item) => item.product_type), terms);
-  return {
-    terms, keywords, equipment, categories,
-  };
-}
-
-/**
  * Renders one suggestion group with an optional Show more control.
  * @param {Object} opts
  * @returns {HTMLElement|null}
@@ -142,7 +93,7 @@ function renderSuggestionGroup({
  * @param {Object} opts
  */
 export default function attachSuggestions(input, {
-  products, copy, onPickQuery,
+  copy, onPickQuery,
 }) {
   loadCSS(`${window.hlx?.codeBasePath || ''}/styles/product-search.css`);
 
@@ -169,6 +120,9 @@ export default function attachSuggestions(input, {
   };
   let debounceTimer;
   let currentQuery = '';
+  let lastResult = {
+    q: '', terms: [], keywords: [], equipment: [], categories: [],
+  };
 
   const hideOverlay = () => {
     overlay.hidden = true;
@@ -189,18 +143,16 @@ export default function attachSuggestions(input, {
     input.focus();
   };
 
-  const render = (query) => {
-    currentQuery = query;
-    const trimmed = query.trim();
+  const draw = () => {
+    const trimmed = currentQuery.trim();
     if (!trimmed) {
       overlay.replaceChildren();
       hideOverlay();
       return;
     }
-
     const {
       terms, keywords, equipment, categories,
-    } = buildSuggestions(products, trimmed);
+    } = lastResult;
     overlay.replaceChildren();
 
     const groups = [
@@ -210,7 +162,7 @@ export default function attachSuggestions(input, {
         expanded: expanded.keywords,
         onExpand: () => {
           expanded.keywords = true;
-          render(currentQuery);
+          draw();
         },
         copy,
         renderItem: (keyword) => {
@@ -230,7 +182,7 @@ export default function attachSuggestions(input, {
         expanded: expanded.equipment,
         onExpand: () => {
           expanded.equipment = true;
-          render(currentQuery);
+          draw();
         },
         copy,
         renderItem: (item) => {
@@ -249,7 +201,7 @@ export default function attachSuggestions(input, {
         expanded: expanded.categories,
         onExpand: () => {
           expanded.categories = true;
-          render(currentQuery);
+          draw();
         },
         copy,
         renderItem: (category) => {
@@ -274,6 +226,24 @@ export default function attachSuggestions(input, {
       groups.forEach((group) => overlay.append(group));
     }
     showOverlay();
+  };
+
+  const catalog = watchCatalog({ mode: 'suggest', q: '' }, (result) => {
+    if ((result.q || '') !== currentQuery.trim()) return;
+    lastResult = result;
+    draw();
+  });
+
+  const render = (query) => {
+    currentQuery = query;
+    const trimmed = query.trim();
+    if (!trimmed) {
+      overlay.replaceChildren();
+      hideOverlay();
+      catalog.update({ mode: 'suggest', q: '' });
+      return;
+    }
+    catalog.update({ mode: 'suggest', q: trimmed });
   };
 
   const scheduleRender = () => {

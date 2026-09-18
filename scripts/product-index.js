@@ -1,138 +1,102 @@
-import { fetchJson } from './scripts.js';
+import { fetchJson } from './product-fetch.js';
+import {
+  HOURS_CAP,
+  HOURS_STEP,
+  PRICE_CAP_USD,
+  PRICE_STEP,
+  PRODUCTS_INDEX,
+  YEAR_MAX,
+  YEAR_MIN,
+  YEAR_STEP,
+  hasProductImage,
+  priceUsd,
+} from './product-catalog.js';
 
-export const PRODUCTS_INDEX = 'https://main--catused--aemsites.aem.network/products/index.json';
-export const CATEGORIES_INDEX = new URL('/categories.json', PRODUCTS_INDEX).href;
-export const HOURS_STEP = 500;
-export const HOURS_CAP = 10000;
-export const PRICE_STEP = 10000;
-export const PRICE_CAP_USD = 400000;
-export const YEAR_STEP = 1;
-export const YEAR_MIN = 2000;
-export const YEAR_MAX = 2026;
-const INDEX_PAGE_SIZE = 1000;
-const INDEX_CONCURRENCY = 5;
-const productListeners = new Set();
+export {
+  HOURS_CAP,
+  HOURS_STEP,
+  PRICE_CAP_USD,
+  PRICE_STEP,
+  PRODUCTS_INDEX,
+  YEAR_MAX,
+  YEAR_MIN,
+  YEAR_STEP,
+  hasProductImage,
+  priceUsd,
+};
+
+export const CATEGORIES_SHEET = new URL('/categories.json', PRODUCTS_INDEX).href;
+
+const handlers = new Map();
+let watchSeq = 0;
+let catalogWorker = null;
 
 /**
- * Whether a product has a usable image URL.
- * @param {Object} item
- * @returns {boolean}
+ * @param {Object} spec
+ * @returns {Object}
  */
-export function hasProductImage(item) {
-  const src = String(item?.image || '').trim();
-  return src.startsWith('http') || src.startsWith('/') || src.startsWith('.');
+function cloneSpec(spec) {
+  const out = { ...(spec || {}) };
+  if (spec?.categoryScope instanceof Set) out.categoryScope = [...spec.categoryScope];
+  return out;
 }
 
 /**
- * Subscribe to product-index updates as pages arrive.
- * @param {Function} listener
- * @returns {Function} unsubscribe
- */
-export function subscribeProducts(listener) {
-  productListeners.add(listener);
-  return () => productListeners.delete(listener);
-}
-
-/**
- * @param {number} offset
  * @returns {string}
  */
-function indexPageUrl(offset) {
-  const url = new URL(PRODUCTS_INDEX);
-  url.searchParams.set('limit', String(INDEX_PAGE_SIZE));
-  url.searchParams.set('offset', String(offset));
-  return url.href;
+function workerUrl() {
+  const base = (window.hlx && window.hlx.codeBasePath) || '';
+  return new URL(`${base}/scripts/product-index-worker.js`, window.location.href).href;
 }
 
 /**
- * @param {Array<Object>} items
+ * @returns {Worker}
  */
-function sortByImage(items) {
-  items.sort((a, b) => Number(hasProductImage(b)) - Number(hasProductImage(a)));
-}
-
-function notifyProductListeners() {
-  productListeners.forEach((listener) => listener(window.productIndex));
+function ensureWorker() {
+  if (catalogWorker) return catalogWorker;
+  catalogWorker = new Worker(workerUrl(), { type: 'module' });
+  catalogWorker.addEventListener('message', (event) => {
+    const { data } = event;
+    if (!data || data.type !== 'result') return;
+    const handler = handlers.get(data.name);
+    if (handler) handler(data);
+  });
+  catalogWorker.addEventListener('error', (error) => {
+    // eslint-disable-next-line no-console
+    console.error('product catalog worker failed', error);
+  });
+  catalogWorker.postMessage({ type: 'start', hostname: window.location.hostname });
+  return catalogWorker;
 }
 
 /**
- * @param {number} offset
- * @returns {Promise<{ offset: number, chunk: Array<Object>, total: number }>}
+ * @param {Object} payload
  */
-async function fetchIndexPage(offset) {
-  const json = await fetchJson(indexPageUrl(offset));
+function send(payload) {
+  ensureWorker().postMessage({ ...payload, hostname: window.location.hostname });
+}
+
+/**
+ * Watches the catalog worker. `onResult` receives page/facets/histograms or
+ * suggestion groups. The catalog stays in the worker.
+ * @param {Object} spec
+ * @param {Function} onResult
+ * @returns {{ update: Function, stop: Function }}
+ */
+export function watchCatalog(spec, onResult) {
+  const name = `w${watchSeq += 1}`;
+  handlers.set(name, onResult);
+  send({ type: 'watch', name, spec: cloneSpec(spec) });
   return {
-    offset,
-    chunk: Array.isArray(json.data) ? json.data : [],
-    total: Number(json.total),
+    update(next) {
+      send({ type: 'watch', name, spec: cloneSpec(next) });
+    },
+    stop() {
+      handlers.delete(name);
+      send({ type: 'unwatch', name });
+    },
   };
 }
-
-/**
- * @param {{ offset: number, chunk: Array<Object> }} page
- */
-function applyIndexPage(page) {
-  if (!page.chunk.length) return;
-  window.productIndex.push(...page.chunk);
-  sortByImage(window.productIndex);
-  notifyProductListeners();
-}
-
-/**
- * Starts (or continues) loading the products index in the background.
- * Five fetches stay in flight; the shared array is updated as pages arrive.
- */
-function startIndexLoad() {
-  if (!Array.isArray(window.productIndex)) window.productIndex = [];
-  if (window.productIndexComplete || window.productIndexPromise) return;
-
-  window.productIndexPromise = (async () => {
-    let nextOffset = 0;
-    let total = Infinity;
-
-    const worker = async () => {
-      while (nextOffset < total) {
-        const offset = nextOffset;
-        nextOffset += INDEX_PAGE_SIZE;
-        // Sliding window: each worker starts the next page as soon as it is free.
-        // eslint-disable-next-line no-await-in-loop
-        const page = await fetchIndexPage(offset);
-        if (Number.isFinite(page.total) && page.total >= 0) {
-          total = Math.min(total, page.total);
-        }
-        if (!page.chunk.length || page.chunk.length < INDEX_PAGE_SIZE) {
-          total = Math.min(total, offset + page.chunk.length);
-        }
-        if (offset < total) applyIndexPage(page);
-      }
-    };
-
-    const workers = Array.from({ length: INDEX_CONCURRENCY }, worker);
-    try {
-      await Promise.all(workers);
-    } catch (error) {
-      total = 0;
-      await Promise.allSettled(workers);
-      // eslint-disable-next-line no-console
-      console.error('failed to load products index', error);
-    }
-    window.productIndexComplete = true;
-    notifyProductListeners();
-    return window.productIndex;
-  })();
-}
-
-/**
- * Returns the shared products array immediately and loads the index in the
- * background. Subscribe with `subscribeProducts` to render as pages arrive.
- * @returns {Array<Object>}
- */
-export function loadProducts() {
-  startIndexLoad();
-  return window.productIndex;
-}
-
-startIndexLoad();
 
 /**
  * Loads rough FX rates (units of each currency per 1 USD).
@@ -153,21 +117,6 @@ export async function loadCurrencyRates() {
 }
 
 /**
- * Converts a listing price to USD using the rate table.
- * @param {Object} item
- * @param {Object<string, number>} rates
- * @returns {number}
- */
-export function priceUsd(item, rates) {
-  const price = Number(item.price);
-  if (Number.isNaN(price) || price < 0) return NaN;
-  const currency = String(item.currency || 'USD').toUpperCase();
-  const rate = Number(rates[currency]);
-  const perUsd = Number.isNaN(rate) || rate <= 0 ? 1 : rate;
-  return price / perUsd;
-}
-
-/**
  * Loads the category tree used to scope PLP listings by pathname.
  * Only needed on `/categories/…` pages. Prefers same-origin `/categories.json`.
  * @returns {Promise<Array<{ path: string, title: string }>>}
@@ -185,7 +134,7 @@ export async function loadCategories() {
         } catch {
           json = null;
         }
-        if (!json) json = await fetchJson(CATEGORIES_INDEX);
+        if (!json) json = await fetchJson(CATEGORIES_SHEET);
         window.categoryIndex = Array.isArray(json.data) ? json.data : [];
       } catch (error) {
         // eslint-disable-next-line no-console
@@ -302,127 +251,6 @@ export function impliedCategoryScope(pathname, categories) {
     addScopeKey(keys, path.split('/').pop());
   });
   return keys;
-}
-
-/**
- * @param {Object} item
- * @param {Set<string>|null} scope
- * @returns {boolean}
- */
-function inCategoryScope(item, scope) {
-  if (!scope) return true;
-  const type = String(item.product_type || '').trim();
-  if (!type) return false;
-  return scope.has(type.toLowerCase()) || scope.has(slugify(type));
-}
-
-/**
- * Filters products by query, ranges, and discrete facets.
- * @param {Array<Object>} products
- * @param {Object} filters
- * @returns {Array<Object>}
- */
-export function filterProducts(products, {
-  q = '',
-  hoursMin = null,
-  hoursMax = null,
-  priceMin = null,
-  priceMax = null,
-  yearMin = null,
-  yearMax = null,
-  category = '',
-  brand = '',
-  country = '',
-  categoryScope = null,
-  rates = { USD: 1 },
-} = {}) {
-  const terms = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
-
-  return products.filter((item) => {
-    if (!inCategoryScope(item, categoryScope)) return false;
-    if (terms.length) {
-      const haystack = [item.title, item.product_type, item.sku, item.brand]
-        .join(' ')
-        .toLowerCase();
-      if (!terms.every((term) => haystack.includes(term))) return false;
-    }
-    if (category && item.product_type !== category) return false;
-    if (brand && item.brand !== brand) return false;
-    if (country && item.country !== country) return false;
-    const hours = Number(item.hours);
-    if (hoursMin != null && (Number.isNaN(hours) || hours < hoursMin)) return false;
-    if (hoursMax != null && (Number.isNaN(hours) || hours > hoursMax)) return false;
-    const year = Number(item.year);
-    if (yearMin != null && (Number.isNaN(year) || year < yearMin)) return false;
-    if (yearMax != null && (Number.isNaN(year) || year > yearMax)) return false;
-    const price = priceUsd(item, rates);
-    if (priceMin != null && (Number.isNaN(price) || price < priceMin)) return false;
-    if (priceMax != null && (Number.isNaN(price) || price > priceMax)) return false;
-    return true;
-  });
-}
-
-/**
- * Unique non-empty values from a product field, sorted.
- * @param {Array<Object>} products
- * @param {Function} getValue
- * @returns {string[]}
- */
-export function uniqueValues(products, getValue) {
-  const seen = new Set();
-  const out = [];
-  products.forEach((item) => {
-    const text = String(getValue(item) ?? '').trim();
-    if (!text) return;
-    const key = text.toLowerCase();
-    if (seen.has(key)) return;
-    seen.add(key);
-    out.push(text);
-  });
-  return out.sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
-}
-
-/**
- * Unique non-empty values with match counts, highest first. Zero-count values
- * are omitted.
- * @param {Array<Object>} products
- * @param {Function} getValue
- * @returns {Array<{ value: string, count: number }>}
- */
-export function facetCounts(products, getValue) {
-  const counts = new Map();
-  products.forEach((item) => {
-    const text = String(getValue(item) ?? '').trim();
-    if (!text) return;
-    const key = text.toLowerCase();
-    const current = counts.get(key);
-    if (current) current.count += 1;
-    else counts.set(key, { value: text, count: 1 });
-  });
-  return [...counts.values()].sort((a, b) => (
-    b.count - a.count || a.value.localeCompare(b.value, 'en', { numeric: true })
-  ));
-}
-
-/**
- * Sorts a product list. `relevance` keeps the incoming order.
- * @param {Array<Object>} products
- * @param {string} sort
- * @param {Object<string, number>} rates
- * @returns {Array<Object>}
- */
-export function sortProducts(products, sort, rates) {
-  const copy = [...products];
-  if (sort === 'price-asc') {
-    copy.sort((a, b) => (priceUsd(a, rates) || 0) - (priceUsd(b, rates) || 0));
-  } else if (sort === 'price-desc') {
-    copy.sort((a, b) => (priceUsd(b, rates) || 0) - (priceUsd(a, rates) || 0));
-  } else if (sort === 'year-desc') {
-    copy.sort((a, b) => (Number(b.year) || 0) - (Number(a.year) || 0));
-  } else if (sort === 'hours-asc') {
-    copy.sort((a, b) => (Number(a.hours) || 0) - (Number(b.hours) || 0));
-  }
-  return copy;
 }
 
 /**

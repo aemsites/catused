@@ -8,22 +8,18 @@ import {
   YEAR_MAX,
   YEAR_MIN,
   YEAR_STEP,
-  filterProducts,
   formatCountry,
   formatNumber,
   formatPrice,
   formatYear,
   loadCurrencyRates,
-  loadProducts,
   loadCategories,
   impliedCategoryScope,
   isCategoryListing,
-  subscribeProducts,
   priceUsd,
   readPlpParams,
   applyPlpParams,
-  sortProducts,
-  facetCounts,
+  watchCatalog,
 } from '../../scripts/product-index.js';
 import attachRangeFilter from '../../scripts/range-filter.js';
 import attachSuggestions, { highlightTerms } from '../../scripts/suggestions.js';
@@ -244,7 +240,6 @@ export default async function decorate(widget) {
     loadCurrencyRates(),
     categoryPage ? loadCategories() : Promise.resolve([]),
   ]);
-  const products = loadProducts();
   const categoryScope = impliedCategoryScope(listingPath, categories);
   hydrateCopy(widget, copy);
 
@@ -276,7 +271,6 @@ export default async function decorate(widget) {
   let hoursControl;
   let yearControl;
   let priceControl;
-  const usdPrice = (item) => priceUsd(item, rates);
 
   const currentState = () => ({
     q: input?.value || '',
@@ -295,32 +289,23 @@ export default async function decorate(widget) {
     categoryScope,
   });
 
-  const refreshFacets = () => {
+  const refreshFacets = (facets = {}) => {
     const state = currentState();
     fillFacetSelect(
       categorySelect,
-      facetCounts(
-        filterProducts(products, { ...state, category: '' }),
-        (item) => item.product_type,
-      ),
+      facets.category || [],
       copy.chooseCategory || copy.any || 'Any',
       state.category,
     );
     fillFacetSelect(
       brandSelect,
-      facetCounts(
-        filterProducts(products, { ...state, brand: '' }),
-        (item) => item.brand,
-      ),
+      facets.brand || [],
       copy.chooseBrand || copy.any || 'Any',
       state.brand,
     );
     fillFacetSelect(
       countrySelect,
-      facetCounts(
-        filterProducts(products, { ...state, country: '' }),
-        (item) => item.country,
-      ),
+      facets.country || [],
       copy.chooseLocation || copy.any || 'Any',
       state.country,
       formatCountry,
@@ -334,6 +319,7 @@ export default async function decorate(widget) {
   };
 
   let applyFilters = () => {};
+  let catalog;
 
   const paintChips = (state) => {
     if (!chipsEl) return;
@@ -430,45 +416,39 @@ export default async function decorate(widget) {
     pager.append(status);
   };
 
+  const catalogSpec = () => {
+    const state = currentState();
+    return {
+      q: state.q,
+      category: state.category,
+      brand: state.brand,
+      country: state.country,
+      sort: state.sort,
+      hoursMin: state.hoursMin,
+      hoursMax: state.hoursMax,
+      priceMin: state.priceMin,
+      priceMax: state.priceMax,
+      yearMin: state.yearMin,
+      yearMax: state.yearMax,
+      rates: state.rates,
+      categoryScope: state.categoryScope,
+      page,
+      pageSize: PAGE_SIZE,
+      facets: true,
+      histograms: ['hours', 'year', 'price'],
+    };
+  };
+
   applyFilters = (opts = {}) => {
     if (opts.resetPage !== false) page = 1;
     const state = currentState();
-    refreshFacets();
-    hoursControl?.updateHistogram(filterProducts(products, {
-      ...state,
-      hoursMin: null,
-      hoursMax: null,
-    }));
-    yearControl?.updateHistogram(filterProducts(products, {
-      ...state,
-      yearMin: null,
-      yearMax: null,
-    }));
-    priceControl?.updateHistogram(filterProducts(products, {
-      ...state,
-      priceMin: null,
-      priceMax: null,
-    }));
-    const matches = sortProducts(filterProducts(products, state), state.sort, rates);
-    const pages = Math.max(1, Math.ceil(matches.length / PAGE_SIZE));
-    if (page > pages) page = pages;
-    const start = (page - 1) * PAGE_SIZE;
-    const slice = matches.slice(start, start + PAGE_SIZE);
-    const terms = String(state.q || '').trim().toLowerCase().split(/\s+/)
-      .filter(Boolean);
-    grid.replaceChildren();
-    slice.forEach((item) => grid.append(renderCard(item, copy, rates, terms)));
-    if (empty) empty.hidden = matches.length > 0;
-    setCount(matches.length);
     paintChips(state);
-    paintPager(pages);
     writeParams({ ...state, page });
-    return matches;
+    catalog?.update(catalogSpec());
   };
 
   if (hoursField) {
     hoursControl = attachRangeFilter(hoursField, {
-      products,
       copy,
       inline: true,
       step: HOURS_STEP,
@@ -486,7 +466,6 @@ export default async function decorate(widget) {
 
   if (yearField) {
     yearControl = attachRangeFilter(yearField, {
-      products,
       copy,
       inline: true,
       step: YEAR_STEP,
@@ -506,13 +485,12 @@ export default async function decorate(widget) {
 
   if (priceField) {
     priceControl = attachRangeFilter(priceField, {
-      products,
       copy,
       inline: true,
       step: PRICE_STEP,
       cap: PRICE_CAP_USD,
       initial: { min: initial.priceMin, max: initial.priceMax },
-      getValue: usdPrice,
+      getValue: (item) => item.price,
       formatValue: formatPrice,
       onChange: () => {
         priceRange = priceControl.getRange();
@@ -571,14 +549,28 @@ export default async function decorate(widget) {
 
   if (input) {
     attachSuggestions(input, {
-      products,
       copy,
       onPickQuery: applyFilters,
     });
   }
 
-  subscribeProducts(() => {
-    applyFilters({ resetPage: false });
+  catalog = watchCatalog(catalogSpec(), (result) => {
+    if (result.page && result.page !== page) {
+      page = result.page;
+      writeParams({ ...currentState(), page });
+    }
+    refreshFacets(result.facets);
+    if (result.histograms?.hours) hoursControl?.updateHistogram(result.histograms.hours);
+    if (result.histograms?.year) yearControl?.updateHistogram(result.histograms.year);
+    if (result.histograms?.price) priceControl?.updateHistogram(result.histograms.price);
+    const state = currentState();
+    const terms = String(state.q || '').trim().toLowerCase().split(/\s+/)
+      .filter(Boolean);
+    grid.replaceChildren();
+    (result.items || []).forEach((item) => grid.append(renderCard(item, copy, rates, terms)));
+    if (empty) empty.hidden = result.count > 0;
+    setCount(result.count || 0);
+    paintPager(result.pages || 1);
   });
-  applyFilters();
+  applyFilters({ resetPage: false });
 }

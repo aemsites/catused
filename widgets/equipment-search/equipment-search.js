@@ -5,14 +5,11 @@ import {
   HOURS_STEP,
   PRICE_CAP_USD,
   PRICE_STEP,
-  filterProducts,
   formatNumber,
   formatPrice,
   loadCurrencyRates,
-  loadProducts,
-  subscribeProducts,
   plpSearchUrl,
-  priceUsd,
+  watchCatalog,
 } from '../../scripts/product-index.js';
 import attachRangeFilter from '../../scripts/range-filter.js';
 import attachSuggestions from '../../scripts/suggestions.js';
@@ -28,7 +25,6 @@ export default async function decorate(widget) {
     loadCopy(import.meta.url),
     loadCurrencyRates(),
   ]);
-  const products = loadProducts();
   hydrateCopy(widget, copy);
 
   const form = widget.querySelector('form');
@@ -42,36 +38,25 @@ export default async function decorate(widget) {
   let priceRange = { min: null, max: null };
   let hoursControl;
   let priceControl;
-  const usdPrice = (item) => priceUsd(item, rates);
+  let catalog;
+
+  const catalogSpec = () => ({
+    q: form.querySelector('#equipment-query')?.value || '',
+    hoursMin: hoursRange.min,
+    hoursMax: hoursRange.max,
+    priceMin: priceRange.min,
+    priceMax: priceRange.max,
+    rates,
+    pageSize: 0,
+    histograms: ['hours', 'price'],
+  });
 
   const applyFilters = () => {
-    const query = form.querySelector('#equipment-query')?.value || '';
-    const shared = {
-      q: query,
-      hoursMin: hoursRange.min,
-      hoursMax: hoursRange.max,
-      priceMin: priceRange.min,
-      priceMax: priceRange.max,
-      rates,
-    };
-    hoursControl?.updateHistogram(filterProducts(products, {
-      ...shared,
-      hoursMin: null,
-      hoursMax: null,
-    }));
-    priceControl?.updateHistogram(filterProducts(products, {
-      ...shared,
-      priceMin: null,
-      priceMax: null,
-    }));
-    const matches = filterProducts(products, shared);
-    setOdometer(countEl, matches.length, { format: formatNumber });
-    return matches;
+    catalog?.update(catalogSpec());
   };
 
   if (hoursField) {
     hoursControl = attachRangeFilter(hoursField, {
-      products,
       copy,
       step: HOURS_STEP,
       cap: HOURS_CAP,
@@ -87,11 +72,10 @@ export default async function decorate(widget) {
 
   if (priceField) {
     priceControl = attachRangeFilter(priceField, {
-      products,
       copy,
       step: PRICE_STEP,
       cap: PRICE_CAP_USD,
-      getValue: usdPrice,
+      getValue: (item) => item.price,
       formatValue: formatPrice,
       onChange: () => {
         priceRange = priceControl.getRange();
@@ -116,12 +100,14 @@ export default async function decorate(widget) {
 
   if (input) {
     attachSuggestions(input, {
-      products,
       copy,
       onPickQuery: applyFilters,
     });
   }
 
-  subscribeProducts(applyFilters);
-  applyFilters();
+  catalog = watchCatalog(catalogSpec(), (result) => {
+    if (result.histograms?.hours) hoursControl?.updateHistogram(result.histograms.hours);
+    if (result.histograms?.price) priceControl?.updateHistogram(result.histograms.price);
+    setOdometer(countEl, result.count || 0, { format: formatNumber });
+  });
 }

@@ -1,17 +1,6 @@
 import { loadCSS } from './aem.js';
+import { buildHistogram, numericValues, valueDomain } from './product-catalog.js';
 import { formatBound, formatNumber, parseBound } from './product-index.js';
-
-/**
- * Numeric values from products via an accessor.
- * @param {Array<Object>} products
- * @param {Function} getValue
- * @returns {number[]}
- */
-function numericValues(products, getValue) {
-  return products
-    .map((item) => Number(getValue(item)))
-    .filter((value) => !Number.isNaN(value) && value >= 0);
-}
 
 /**
  * Snaps a value to the nearest step within the domain.
@@ -26,88 +15,13 @@ function snapValue(value, domain, step) {
 }
 
 /**
- * Largest number in a list without spreading (spread blows the stack on big arrays).
- * @param {number[]} values
- * @param {number} [fallback]
- * @returns {number}
- */
-function maxOf(values, fallback = 0) {
-  let max = fallback;
-  for (let i = 0; i < values.length; i += 1) {
-    if (values[i] > max) max = values[i];
-  }
-  return max;
-}
-
-/**
- * Slider/histogram domain: 0 to lastRegular, plus one over tick.
- * @param {number[]} values
- * @param {number} step
- * @param {number} [cap]
- * @returns {{ min: number, max: number, lastRegular: number }}
- */
-function valueDomain(values, step, cap, origin = 0, over = true) {
-  const start = origin || 0;
-  let lastRegular;
-  if (cap != null) {
-    lastRegular = Math.max(start, Math.round(cap / step) * step);
-  } else {
-    const dataMax = maxOf(values, start);
-    lastRegular = Math.max(start + step, Math.floor(dataMax / step) * step);
-  }
-  return {
-    min: start,
-    lastRegular,
-    max: over ? lastRegular + step : lastRegular,
-    over,
-  };
-}
-
-/**
- * Builds histogram bins in step-sized buckets; the last bin is unbounded when
- * the domain has an over tick.
- * @param {number[]} values
- * @param {{ min: number, max: number, lastRegular: number, over: boolean }} domain
- * @param {number} step
- * @returns {Array<{ start: number, end: number, over: boolean, ratio: number }>}
- */
-function buildHistogram(values, domain, step) {
-  const {
-    min, max, lastRegular, over: hasOver,
-  } = domain;
-  const bins = Math.max(1, hasOver === false
-    ? Math.round((lastRegular - min) / step) + 1
-    : Math.round((max - min) / step));
-  const counts = Array(bins).fill(0);
-  values.forEach((value) => {
-    let index = hasOver !== false && value >= lastRegular
-      ? bins - 1
-      : Math.floor((value - min) / step);
-    if (index >= bins) index = bins - 1;
-    if (index < 0) index = 0;
-    counts[index] += 1;
-  });
-  const peak = Math.max(1, maxOf(counts, 0));
-  return counts.map((count, index) => {
-    const start = min + index * step;
-    const unbounded = hasOver !== false && index === bins - 1;
-    return {
-      start,
-      end: unbounded ? Infinity : start + step,
-      over: unbounded,
-      ratio: count / peak,
-    };
-  });
-}
-
-/**
  * Dual-handle range, histogram, and min/max fields.
  * @param {Element} field
  * @param {Object} opts
  * @returns {{ getRange: Function, setRange: Function, updateHistogram: Function }}
  */
 export default function attachRangeFilter(field, {
-  products, copy, onChange, getValue, step, formatValue, cap, inline, initial,
+  products = [], copy, onChange, getValue, step, formatValue, cap, inline, initial,
   origin = 0, over = true,
 }) {
   loadCSS(`${window.hlx?.codeBasePath || ''}/styles/product-search.css`);
@@ -226,7 +140,11 @@ export default function attachRangeFilter(field, {
   };
 
   const updateHistogram = (subset) => {
-    bins = buildHistogram(numericValues(subset, getValue), domain, step);
+    if (Array.isArray(subset) && subset.length && subset[0].ratio != null) {
+      bins = subset;
+    } else {
+      bins = buildHistogram(numericValues(subset || [], getValue), domain, step);
+    }
     paintHistogram();
   };
 

@@ -11,6 +11,12 @@ import {
   loadCSS,
   buildBlock,
 } from './aem.js';
+import {
+  PIPELINE_ORIGIN,
+  fetchJson,
+  isTrustedHost,
+  requestUrl,
+} from './product-fetch.js';
 
 if (window.trustedTypes && window.trustedTypes.createPolicy) {
   const innerTT = window.trustedTypes.createPolicy('tt-inner', {
@@ -37,10 +43,6 @@ if (window.trustedTypes && window.trustedTypes.createPolicy) {
   });
 }
 
-/**
- * Origin that serves product-pipeline output.
- */
-const PIPELINE_ORIGIN = 'https://main--catused--aemsites.aem.network';
 const IS_PIPELINE_HOST = window.location.hostname.endsWith('.aem.network')
   || window.location.hostname.endsWith('catused.cat.com');
 
@@ -163,41 +165,7 @@ export function hydrateCopy(container, copy) {
   });
 }
 
-const FCORS_PROXY = 'https://fcors.org/?url=';
-const FCORS_KEY = 'lakudfyapuodfyha';
-
-/**
- * Whether the current page host can fetch AEM/Cat origins directly.
- * @returns {boolean}
- */
-function isTrustedHost() {
-  const { hostname } = window.location;
-  return hostname === 'aem.network'
-    || hostname.endsWith('.aem.network')
-    || hostname === 'cat.com'
-    || hostname.endsWith('.cat.com');
-}
-
-/**
- * @param {string} url Absolute URL to fetch
- * @returns {string}
- */
-function requestUrl(url) {
-  return isTrustedHost()
-    ? url
-    : `${FCORS_PROXY}${encodeURIComponent(url)}&key=${FCORS_KEY}`;
-}
-
-/**
- * Fetches JSON, proxying through fcors.org when the page is not on a trusted host.
- * @param {string} url Absolute URL to fetch
- * @returns {Promise<any>}
- */
-export async function fetchJson(url) {
-  const resp = await fetch(requestUrl(url));
-  if (!resp.ok) throw new Error(`Failed to fetch ${url}: ${resp.status}`);
-  return resp.json();
-}
+export { fetchJson };
 
 /**
  * load fonts.css and set a session storage flag
