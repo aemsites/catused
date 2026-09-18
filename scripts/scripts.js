@@ -10,6 +10,7 @@ import {
   loadSections,
   loadCSS,
   buildBlock,
+  createOptimizedPicture,
 } from './aem.js';
 import {
   PIPELINE_ORIGIN,
@@ -383,33 +384,7 @@ function decorateSectionBackgrounds(main) {
     try {
       const { pathname } = new URL(background, window.location.href);
       if (pathname.endsWith('.mp4')) return;
-      const ext = pathname.split('.').pop();
-      const breakpoints = [
-        { media: '(min-width: 900px)', width: '2880' },
-        { width: '1600' },
-      ];
-      const picture = document.createElement('picture');
-      breakpoints.forEach((br) => {
-        const source = document.createElement('source');
-        if (br.media) source.media = br.media;
-        source.type = 'image/webp';
-        source.srcset = `${pathname}?width=${br.width}&format=webply&optimize=medium`;
-        picture.append(source);
-      });
-      breakpoints.forEach((br, i) => {
-        if (i < breakpoints.length - 1) {
-          const source = document.createElement('source');
-          if (br.media) source.media = br.media;
-          source.srcset = `${pathname}?width=${br.width}&format=${ext}&optimize=medium`;
-          picture.append(source);
-          return;
-        }
-        const img = document.createElement('img');
-        img.loading = 'lazy';
-        img.alt = '';
-        img.src = `${pathname}?width=${br.width}&format=${ext}&optimize=medium`;
-        picture.append(img);
-      });
+      const picture = createOptimizedPicture(background, '', false);
       picture.classList.add('section-background-image');
       picture.setAttribute('aria-hidden', 'true');
       section.prepend(picture);
