@@ -384,7 +384,7 @@ function decorateSectionBackgrounds(main) {
     try {
       const { pathname } = new URL(background, window.location.href);
       if (pathname.endsWith('.mp4')) return;
-      const picture = createOptimizedPicture(background, '', false);
+      const picture = createOptimizedPicture(pathname, '', false);
       picture.classList.add('section-background-image');
       picture.setAttribute('aria-hidden', 'true');
       section.prepend(picture);

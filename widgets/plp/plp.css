@@ -1,3 +1,7 @@
+main > .section.plp-container > div {
+  text-align: left;
+}
+
 .plp {
   --color-bg: var(--color-white);
   --color-bg-light: var(--color-gray-5);

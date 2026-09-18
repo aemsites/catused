@@ -22,7 +22,7 @@ import {
   watchCatalog,
 } from '../../scripts/product-index.js';
 import attachRangeFilter from '../../scripts/range-filter.js';
-import attachSuggestions, { highlightTerms } from '../../scripts/suggestions.js';
+import { highlightTerms } from '../../scripts/suggestions.js';
 import { setOdometerLabel } from '../../scripts/odometer.js';
 
 const PAGE_SIZE = 50;
@@ -546,13 +546,6 @@ export default async function decorate(widget) {
     el.addEventListener('change', applyFilters);
   });
   input?.addEventListener('input', applyFilters);
-
-  if (input) {
-    attachSuggestions(input, {
-      copy,
-      onPickQuery: applyFilters,
-    });
-  }
 
   catalog = watchCatalog(catalogSpec(), (result) => {
     if (result.page && result.page !== page) {

@@ -457,13 +457,16 @@ export function suggestProducts(products, query) {
     };
   }
   const equipment = filterProducts(products, { q });
-  const keywords = matchingUniques(
+  const brands = matchingUniques(equipment.map((item) => item.brand), terms);
+  const brandKeys = new Set(brands.map((brand) => brand.toLowerCase()));
+  const otherKeywords = matchingUniques(
     equipment.flatMap((item) => [
       item.product_type,
       (item.title || '').replace(/^\d{4}\s+/, ''),
     ]),
     terms,
-  ).slice(0, SUGGESTIONS_UNIQUE_LIMIT);
+  ).filter((keyword) => !brandKeys.has(keyword.toLowerCase()));
+  const keywords = [...brands, ...otherKeywords].slice(0, SUGGESTIONS_UNIQUE_LIMIT);
   const categories = matchingUniques(
     equipment.map((item) => item.product_type),
     terms,

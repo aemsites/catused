@@ -111,7 +111,9 @@ export default function attachSuggestions(input, {
   anchor.append(overlay);
 
   input.setAttribute('autocomplete', 'off');
+  input.setAttribute('role', 'combobox');
   input.setAttribute('aria-autocomplete', 'list');
+  input.setAttribute('aria-haspopup', 'listbox');
   input.setAttribute('aria-controls', overlay.id);
   input.setAttribute('aria-expanded', 'false');
 
@@ -120,11 +122,14 @@ export default function attachSuggestions(input, {
   };
   let debounceTimer;
   let currentQuery = '';
+  let openFromQuery = false;
+  let ignoreFocus = false;
   let lastResult = {
     q: '', terms: [], keywords: [], equipment: [], categories: [],
   };
 
   const hideOverlay = () => {
+    openFromQuery = false;
     overlay.hidden = true;
     input.setAttribute('aria-expanded', 'false');
   };
@@ -137,6 +142,7 @@ export default function attachSuggestions(input, {
   const getFocusable = () => [...overlay.querySelectorAll('a, button')];
 
   const pickQuery = (value) => {
+    ignoreFocus = true;
     input.value = value;
     onPickQuery();
     hideOverlay();
@@ -231,7 +237,7 @@ export default function attachSuggestions(input, {
   const catalog = watchCatalog({ mode: 'suggest', q: '' }, (result) => {
     if ((result.q || '') !== currentQuery.trim()) return;
     lastResult = result;
-    draw();
+    if (openFromQuery || !overlay.hidden) draw();
   });
 
   const render = (query) => {
@@ -250,6 +256,7 @@ export default function attachSuggestions(input, {
     expanded.keywords = false;
     expanded.equipment = false;
     expanded.categories = false;
+    openFromQuery = true;
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => render(input.value), SUGGESTIONS_DEBOUNCE_MS);
   };
@@ -293,8 +300,13 @@ export default function attachSuggestions(input, {
 
   input.addEventListener('input', scheduleRender);
   input.addEventListener('focus', () => {
-    if (input.value.trim() && overlay.children.length) showOverlay();
-    else if (input.value.trim()) render(input.value);
+    if (ignoreFocus) {
+      ignoreFocus = false;
+      return;
+    }
+    if (!input.value.trim()) return;
+    openFromQuery = true;
+    render(input.value);
   });
   input.addEventListener('keydown', onInputKeydown);
   overlay.addEventListener('keydown', onOverlayKeydown);
