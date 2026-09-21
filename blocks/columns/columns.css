@@ -7,16 +7,17 @@
   width: 100%;
 }
 
-.columns > div > div {
-  order: 1;
-}
-
-.columns > div > .columns-img-col {
-  order: 0;
-}
-
 .columns > div > .columns-img-col img {
   display: block;
+}
+
+.columns.columns-3-cols div div:first-child {
+  display: none;
+}
+
+/* special case for 3 columns, probably too inclusive */
+.columns.columns-3-cols div:last-child {
+  order: 0;
 }
 
 @media (width >= 900px) {
@@ -30,4 +31,11 @@
     flex: 1;
     order: unset;
   }
+
+/* special case for 3 columns, probably too inclusive */
+.columns.columns-3-cols div div:first-child {
+    display: unset;
+  }  
 }
+
+

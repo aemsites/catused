@@ -1,3 +1,7 @@
+main > div.section.equipment-search-container {
+  padding: 48px 0 64px;
+}
+
 .equipment-search .search-card {
   --color-bg: var(--color-white);
   --color-text: var(--color-black);
