@@ -18,7 +18,20 @@ const OT_TEST_COOKIE_DOMAINS = [
   '.catdealer.com',
 ];
 
+const BANNER_DELAY_MS = 12000;
+
 let consentedLoaded = false;
+
+/**
+ * Hides the OneTrust banner, then reveals it. The SDK still loads immediately
+ * so Cookie Settings works during the wait.
+ */
+function holdConsentBanner() {
+  const style = document.createElement('style');
+  style.textContent = '#onetrust-banner-sdk { display: none !important; }';
+  document.head.append(style);
+  setTimeout(() => style.remove(), BANNER_DELAY_MS);
+}
 
 /**
  * Clears OneTrust cookies on test domains so the banner can be re-tested.
@@ -67,6 +80,8 @@ async function initOneTrust() {
   if (OT_DOMAIN_SCRIPT.includes('-test')) {
     clearTestConsentCookies();
   }
+
+  if (!hasConsent()) holdConsentBanner();
 
   window.OptanonWrapper = () => {
     const groups = (window.OnetrustActiveGroups || '')
