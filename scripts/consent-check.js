@@ -19,19 +19,9 @@ const OT_TEST_COOKIE_DOMAINS = [
 ];
 
 const BANNER_DELAY_MS = 12000;
+const BANNER_FADE_MS = 600;
 
 let consentedLoaded = false;
-
-/**
- * Hides the OneTrust banner, then reveals it. The SDK still loads immediately
- * so Cookie Settings works during the wait.
- */
-function holdConsentBanner() {
-  const style = document.createElement('style');
-  style.textContent = '#onetrust-banner-sdk { display: none !important; }';
-  document.head.append(style);
-  setTimeout(() => style.remove(), BANNER_DELAY_MS);
-}
 
 /**
  * Clears OneTrust cookies on test domains so the banner can be re-tested.
@@ -50,6 +40,43 @@ function clearTestConsentCookies() {
  */
 function hasConsent() {
   return document.cookie.split(';').some((cookie) => cookie.trim().startsWith('OptanonAlertBoxClosed='));
+}
+
+/**
+ * Hides the OneTrust banner, then fades it in. The SDK still loads immediately
+ * so Cookie Settings works during the wait.
+ */
+function holdConsentBanner() {
+  const style = document.createElement('style');
+  style.textContent = `#onetrust-banner-sdk {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }`;
+  document.head.append(style);
+
+  setTimeout(() => {
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (hasConsent() || reduceMotion) {
+      style.remove();
+      return;
+    }
+
+    style.textContent = `@keyframes ot-banner-fade {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    #onetrust-banner-sdk {
+      animation: ot-banner-fade ${BANNER_FADE_MS}ms ease-out forwards;
+    }`;
+
+    const done = (event) => {
+      if (event.animationName !== 'ot-banner-fade') return;
+      document.removeEventListener('animationend', done);
+      style.remove();
+    };
+    document.addEventListener('animationend', done);
+  }, BANNER_DELAY_MS);
 }
 
 /**
