@@ -103,6 +103,39 @@ export function add(tag, className, parent, text) {
 }
 
 /**
+ * Builds a small responsive image from an existing Product Bus picture.
+ *
+ * Cloning the source `<picture>` for a 100–200px thumbnail carries its desktop
+ * `width=2000` source and makes the browser download hero-sized media for the
+ * rail. This preserves the source image's alt text but gives the browser only
+ * 1x/2x candidates appropriate to the displayed thumbnail.
+ *
+ * @param {HTMLElement} picture
+ * @param {number} width CSS pixel width for the 1x candidate.
+ * @returns {HTMLImageElement}
+ */
+export function thumbnail(picture, width) {
+  const source = picture.querySelector('img');
+  const raw = source?.currentSrc || source?.getAttribute('src') || '';
+  const makeUrl = (targetWidth) => {
+    const url = new URL(raw, window.location.href);
+    url.searchParams.set('width', String(targetWidth));
+    url.searchParams.set('format', 'webply');
+    url.searchParams.set('optimize', 'medium');
+    return url.href;
+  };
+
+  const image = document.createElement('img');
+  image.src = makeUrl(width);
+  image.srcset = `${makeUrl(width)} 1x, ${makeUrl(width * 2)} 2x`;
+  image.sizes = `${width}px`;
+  image.loading = 'lazy';
+  image.decoding = 'async';
+  image.alt = source?.getAttribute('alt') || '';
+  return image;
+}
+
+/**
  * Reads the product payload out of the pipeline's JSON-LD.
  * @returns {{ jsonld: object, custom: object, offer: object }}
  */
