@@ -1688,6 +1688,11 @@ html.pdp-dialog-open body {
   object-fit: cover;
 }
 
+.pdp-dialog-rows .pdp-report-row.is-hidden,
+.pdp-report > .pdp-report-row.is-hidden {
+  display: none;
+}
+
 .pdp-scale {
   display: inline-flex;
   gap: 3px;

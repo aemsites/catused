@@ -295,29 +295,25 @@ function addReportRow(parent, category, custom, pictures = []) {
 
   const body = add('div', 'pdp-report-body', row);
 
-  // Full reports can carry hundreds of checks. Keep the category summary cheap
-  // and create its item DOM only after a user actually opens this <details>.
-  row.addEventListener('toggle', () => {
-    if (!row.open || body.dataset.populated) return;
-    body.dataset.populated = 'true';
+  // Keep full source-backed condition content in the initial rendered DOM. Search
+  // crawlers do not expand custom controls, so creating checks only on <details>
+  // toggle would make listing-specific inspection text undiscoverable.
+  detailItems(category, custom).forEach((item) => {
+    const entry = add('div', 'pdp-report-item', body);
+    const head = add('div', 'pdp-report-item-head', entry);
+    add('span', 'pdp-report-item-name', head, item.label);
+    if (item.dots) addDotScale(head, item.dots);
+    else if (item.value) add('span', 'pdp-report-item-value', head, item.value);
+    if (item.copy) add('p', 'pdp-report-item-copy', entry, item.copy);
+  });
 
-    detailItems(category, custom).forEach((item) => {
-      const entry = add('div', 'pdp-report-item', body);
-      const head = add('div', 'pdp-report-item-head', entry);
-      add('span', 'pdp-report-item-name', head, item.label);
-      if (item.dots) addDotScale(head, item.dots);
-      else if (item.value) add('span', 'pdp-report-item-value', head, item.value);
-      if (item.copy) add('p', 'pdp-report-item-copy', entry, item.copy);
-    });
+  const evidence = conditionEvidence(category.name, pictures);
+  if (!evidence.length) return;
 
-    const evidence = conditionEvidence(category.name, pictures);
-    if (!evidence.length) return;
-
-    const media = add('div', 'pdp-report-evidence', body);
-    evidence.forEach((picture) => {
-      const clone = picture.cloneNode(true);
-      add('div', 'pdp-report-evidence-image', media).append(clone);
-    });
+  const media = add('div', 'pdp-report-evidence', body);
+  evidence.forEach((picture) => {
+    const clone = picture.cloneNode(true);
+    add('div', 'pdp-report-evidence-image', media).append(clone);
   });
 }
 
@@ -345,30 +341,26 @@ function buildConditionDialog(custom, title, pictures) {
   close.append(icon('close'));
 
   const body = add('div', 'pdp-dialog-body', dialog);
+  body.append(buildAssistant(custom, title));
 
-  // The dialog is absent from the initial interaction path. Populate summaries
-  // only when Full Report is opened; individual row bodies remain lazy on
-  // <details> toggle through addReportRow.
-  dialog.addEventListener('pdp:prepare', () => {
-    body.append(buildAssistant(custom, title));
+  // This duplicates the desktop report for the mobile dialog, but keeps the
+  // complete report in the rendered DOM without requiring a crawler click.
+  const categories = inspectionCategories(custom);
+  const rows = add('div', 'pdp-dialog-rows', body);
+  categories.forEach((category, i) => {
+    addReportRow(rows, category, custom, pictures);
+    if (i >= REPORT_PREVIEW) rows.lastElementChild.classList.add('is-hidden');
+  });
 
-    const categories = inspectionCategories(custom);
-    const rows = add('div', 'pdp-dialog-rows', body);
-    categories.slice(0, REPORT_PREVIEW).forEach((category) => {
-      addReportRow(rows, category, custom, pictures);
+  if (categories.length > REPORT_PREVIEW) {
+    const all = add('button', 'pdp-btn pdp-btn-secondary pdp-dialog-all', body, 'View All');
+    all.type = 'button';
+    all.addEventListener('click', () => {
+      rows.querySelectorAll('.pdp-report-row.is-hidden')
+        .forEach((row) => row.classList.remove('is-hidden'));
+      all.remove();
     });
-
-    if (categories.length > REPORT_PREVIEW) {
-      const all = add('button', 'pdp-btn pdp-btn-secondary pdp-dialog-all', body, 'View All');
-      all.type = 'button';
-      all.addEventListener('click', () => {
-        categories.slice(REPORT_PREVIEW).forEach((category) => {
-          addReportRow(rows, category, custom, pictures);
-        });
-        all.remove();
-      });
-    }
-  }, { once: true });
+  }
 
   return dialog;
 }
@@ -396,8 +388,9 @@ export function buildCondition(custom, title, pictures = []) {
 
   const report = add('div', 'pdp-report', grid);
   add('h3', 'pdp-report-title', report, 'Full Report');
-  categories.slice(0, REPORT_PREVIEW).forEach((category) => {
+  categories.forEach((category, i) => {
     addReportRow(report, category, custom, pictures);
+    if (i >= REPORT_PREVIEW) report.lastElementChild.classList.add('is-hidden');
   });
 
   if (categories.length > REPORT_PREVIEW) {
@@ -405,18 +398,11 @@ export function buildCondition(custom, title, pictures = []) {
     more.type = 'button';
     more.addEventListener('click', () => {
       const expanded = more.dataset.expanded === 'true';
-      if (!expanded) {
-        categories.slice(REPORT_PREVIEW).forEach((category) => {
-          addReportRow(report, category, custom, pictures);
-          report.lastElementChild.classList.add('is-deferred');
-        });
-        more.dataset.expanded = 'true';
-        more.textContent = 'Show less';
-        return;
-      }
-      report.querySelectorAll('.pdp-report-row.is-deferred').forEach((row) => row.remove());
-      more.dataset.expanded = 'false';
-      more.textContent = `View ${categories.length - REPORT_PREVIEW} More`;
+      report.querySelectorAll('.pdp-report-row.is-hidden').forEach((row) => {
+        row.classList.toggle('is-hidden', expanded);
+      });
+      more.dataset.expanded = String(!expanded);
+      more.textContent = expanded ? `View ${categories.length - REPORT_PREVIEW} More` : 'Show less';
     });
   }
 
