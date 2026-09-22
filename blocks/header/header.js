@@ -10,9 +10,31 @@ const TOOL_LABELS = {
   grid: 'Apps',
 };
 
+const ACCOUNT_URL = 'https://myused.cat.com/';
+const WAFFLE_PATH = '/nav/waffle';
+
+let waffleRequest;
+
+/**
+ * Closes the apps menu opened from the waffle control.
+ * @param {Element} nav
+ */
+function closeWaffle(nav) {
+  const menu = nav.querySelector('.nav-waffle');
+  const button = nav.querySelector('.nav-waffle-button');
+  if (menu) menu.hidden = true;
+  if (button) button.setAttribute('aria-expanded', 'false');
+}
+
 function closeOnEscape(e) {
   if (e.code === 'Escape') {
     const nav = document.getElementById('nav');
+    const waffle = nav.querySelector('.nav-waffle');
+    if (waffle && !waffle.hidden) {
+      closeWaffle(nav);
+      nav.querySelector('.nav-waffle-button')?.focus();
+      return;
+    }
     const navSections = nav.querySelector('.nav-sections');
     if (!navSections) return;
     const navSectionExpanded = navSections.querySelector('[aria-expanded="true"]');
@@ -31,6 +53,7 @@ function closeOnEscape(e) {
 function closeOnFocusLost(e) {
   const nav = e.currentTarget;
   if (!nav.contains(e.relatedTarget)) {
+    closeWaffle(nav);
     const navSections = nav.querySelector('.nav-sections');
     if (!navSections) return;
     const navSectionExpanded = navSections.querySelector('[aria-expanded="true"]');
@@ -84,6 +107,7 @@ function toggleMenu(nav, navSections, forceExpanded = null) {
   nav.setAttribute('aria-expanded', expanded ? 'false' : 'true');
   toggleAllNavSections(navSections, expanded || isDesktop.matches ? 'false' : 'true');
   button.setAttribute('aria-label', expanded ? 'Open navigation' : 'Close navigation');
+  if (expanded && !isDesktop.matches) closeWaffle(nav);
   // enable nav dropdown keyboard accessibility
   if (navSections) {
     const navDrops = navSections.querySelectorAll('.nav-drop');
@@ -192,18 +216,133 @@ function decorateNavSections(nav, navSections) {
 }
 
 /**
+ * Replaces an icon-only paragraph with the control that should own the icon.
+ * @param {Element} icon
+ * @param {Element} replacement
+ * @returns {Element}
+ */
+function replaceIconHost(icon, replacement) {
+  const paragraph = icon.closest('p');
+  if (paragraph && paragraph.textContent.trim() === '') {
+    paragraph.replaceWith(replacement);
+  } else {
+    icon.replaceWith(replacement);
+  }
+  replacement.append(icon);
+  return replacement;
+}
+
+/**
+ * Turns the account icon into a link to the sign-in site.
+ * @param {Element} icon
+ * @returns {HTMLAnchorElement}
+ */
+function linkAccount(icon) {
+  const existing = icon.closest('a');
+  if (existing) {
+    existing.href = ACCOUNT_URL;
+    return existing;
+  }
+  const link = document.createElement('a');
+  link.href = ACCOUNT_URL;
+  return replaceIconHost(icon, link);
+}
+
+/**
+ * Loads the waffle fragment once and builds the apps menu.
+ * @param {Element} nav
+ * @returns {Promise<HTMLElement|null>}
+ */
+function ensureWaffleMenu(nav) {
+  const navTools = nav.querySelector('.nav-tools');
+  const existing = navTools?.querySelector('.nav-waffle');
+  if (existing) return Promise.resolve(existing);
+  if (!navTools) return Promise.resolve(null);
+  if (!waffleRequest) {
+    waffleRequest = loadFragment(WAFFLE_PATH)
+      .then((fragment) => {
+        const list = fragment?.querySelector('ul');
+        if (!list) {
+          waffleRequest = null;
+          return null;
+        }
+        stripButtonStyles(list);
+        list.querySelectorAll('a[href]').forEach((link) => decorateExternalLink(link));
+        const menu = document.createElement('div');
+        menu.className = 'nav-waffle';
+        menu.id = 'nav-waffle';
+        menu.hidden = true;
+        menu.append(list);
+        menu.addEventListener('click', (e) => {
+          if (!e.target.closest('a')) return;
+          closeWaffle(nav);
+          if (!isDesktop.matches && nav.getAttribute('aria-expanded') === 'true') {
+            toggleMenu(nav, nav.querySelector('.nav-sections'), false);
+          }
+        });
+        navTools.append(menu);
+        return menu;
+      })
+      .catch(() => {
+        waffleRequest = null;
+        return null;
+      });
+  }
+  return waffleRequest;
+}
+
+/**
+ * Turns the waffle icon into a button that fetches and toggles the apps menu.
+ * @param {Element} nav
+ * @param {Element} icon
+ * @returns {HTMLButtonElement}
+ */
+function decorateWaffle(nav, icon) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'nav-waffle-button';
+  button.setAttribute('aria-haspopup', 'true');
+  button.setAttribute('aria-expanded', 'false');
+  button.setAttribute('aria-controls', 'nav-waffle');
+  replaceIconHost(icon, button);
+  button.addEventListener('click', async () => {
+    if (button.dataset.loading === 'true') return;
+    const hadMenu = !!nav.querySelector('.nav-waffle');
+    if (!hadMenu) {
+      button.dataset.loading = 'true';
+      button.setAttribute('aria-busy', 'true');
+    }
+    const menu = await ensureWaffleMenu(nav);
+    if (!hadMenu) {
+      delete button.dataset.loading;
+      button.removeAttribute('aria-busy');
+    }
+    if (!menu) return;
+    const open = menu.hidden;
+    if (open) toggleAllNavSections(nav.querySelector('.nav-sections'), false);
+    menu.hidden = !open;
+    button.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+  return button;
+}
+
+/**
  * Labels tool icons when authors omit link text.
+ * @param {Element} nav
  * @param {Element} navTools
  */
-function decorateTools(navTools) {
+function decorateTools(nav, navTools) {
   if (!navTools) return;
   navTools.querySelectorAll('.icon').forEach((icon) => {
     const iconName = [...icon.classList].find((cls) => cls.startsWith('icon-'))?.slice(5);
     const label = TOOL_LABELS[iconName] || iconName;
     if (!label) return;
-    const host = icon.closest('a') || icon.closest('p') || icon;
+    let host;
+    if (iconName === 'person') host = linkAccount(icon);
+    else if (iconName === 'grid') host = decorateWaffle(nav, icon);
+    else host = icon.closest('a') || icon.closest('p') || icon;
     if (!host.getAttribute('aria-label')) host.setAttribute('aria-label', label);
-    if (host.tagName === 'P' && !host.querySelector('a')) host.setAttribute('role', 'img');
+    if (host.tagName === 'P' && !host.querySelector('a, button')) host.setAttribute('role', 'img');
   });
 }
 
@@ -233,8 +372,24 @@ export default async function decorate(block) {
   decorateBrand(nav.querySelector('.nav-brand'));
 
   const navSections = nav.querySelector('.nav-sections');
+  const navTools = nav.querySelector('.nav-tools');
+  if (navSections) {
+    const panel = document.createElement('div');
+    panel.className = 'nav-panel';
+    navSections.before(panel);
+    panel.append(navSections);
+    if (navTools) panel.append(navTools);
+  }
   decorateNavSections(nav, navSections);
-  decorateTools(nav.querySelector('.nav-tools'));
+  decorateTools(nav, navTools);
+
+  document.addEventListener('pointerdown', (e) => {
+    const menu = nav.querySelector('.nav-waffle');
+    const waffleButton = nav.querySelector('.nav-waffle-button');
+    if (!menu || menu.hidden) return;
+    if (menu.contains(e.target) || waffleButton?.contains(e.target)) return;
+    closeWaffle(nav);
+  });
 
   // hamburger for mobile
   const hamburger = document.createElement('div');
@@ -247,7 +402,10 @@ export default async function decorate(block) {
   nav.setAttribute('aria-expanded', 'false');
   // prevent mobile nav behavior on window resize
   toggleMenu(nav, navSections, isDesktop.matches);
-  isDesktop.addEventListener('change', () => toggleMenu(nav, navSections, isDesktop.matches));
+  isDesktop.addEventListener('change', () => {
+    closeWaffle(nav);
+    toggleMenu(nav, navSections, isDesktop.matches);
+  });
 
   const navWrapper = document.createElement('div');
   navWrapper.className = 'nav-wrapper';
