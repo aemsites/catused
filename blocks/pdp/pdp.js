@@ -7,13 +7,13 @@ import {
 } from './pdp-sections.js';
 
 /**
- * Keeps the gallery dots and thumbnails in step with the scroll-snap track.
+ * Keeps the gallery count and thumbnail shortcuts in step with the scroll-snap track.
  *
  * The gesture itself is entirely native: the track is a horizontally scrollable
  * element with `scroll-snap-type`, so dragging, momentum, rubber-banding at the
  * ends and snapping all come from the browser. This only reflects the resulting
- * scroll position back into the controls, and drives the track when a dot,
- * thumbnail or arrow is used.
+ * scroll position back into the controls, and drives the track when a thumbnail
+ * or arrow is used.
  *
  * @param {HTMLElement} block
  */
@@ -21,12 +21,21 @@ function decorateGalleryInteractions(block) {
   const track = block.querySelector('.pdp-gallery-track');
   const slides = [...block.querySelectorAll('.pdp-gallery-slide')];
   const thumbs = [...block.querySelectorAll('.pdp-thumb')];
-  const dots = [...block.querySelectorAll('.pdp-dot')];
+  const thumbRail = block.querySelector('.pdp-gallery-thumbs');
+  const count = block.querySelector('.pdp-gallery-count');
   if (!track || slides.length < 2) return;
 
   const mark = (index) => {
     thumbs.forEach((thumb, i) => thumb.classList.toggle('is-active', i === index));
-    dots.forEach((dot, i) => dot.classList.toggle('is-active', i === index));
+    if (count) count.textContent = `${index + 1} / ${slides.length}`;
+
+    // When arrows/swiping move beyond the initially visible thumbnails, keep
+    // the selected shortcut in view. Without this, the active outline remains
+    // on an off-screen item and appears to have disappeared.
+    const active = thumbs[index];
+    if (thumbRail && active && window.innerWidth >= 900) {
+      active.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+    }
   };
 
   const goTo = (index) => {
@@ -45,8 +54,11 @@ function decorateGalleryInteractions(block) {
     });
   }, { passive: true });
 
-  thumbs.forEach((thumb, i) => thumb.addEventListener('click', () => goTo(i)));
-  dots.forEach((dot, i) => dot.addEventListener('click', () => goTo(i)));
+  thumbs.forEach((thumb, i) => thumb.addEventListener('click', () => {
+    // Video thumbnails are direct play actions; photo thumbnails select their
+    // corresponding gallery slide as before.
+    if (!thumb.classList.contains('is-video')) goTo(i);
+  }));
 
   block.querySelectorAll('.pdp-gallery-arrow').forEach((arrow, i) => {
     arrow.addEventListener('click', () => {
@@ -54,6 +66,30 @@ function decorateGalleryInteractions(block) {
       goTo(current + (i === 0 ? -1 : 1));
     });
   });
+
+  // Native scroll-snap owns the drag on supported touch browsers. This fallback
+  // handles environments where a touch gesture reaches the scroll container but
+  // does not produce native horizontal scrolling; it never prevents defaults,
+  // so vertical document scroll stays native and a working native drag is never
+  // double-advanced.
+  let touch;
+  track.addEventListener('touchstart', (event) => {
+    const point = event.touches[0];
+    if (!point) return;
+    touch = { x: point.clientX, y: point.clientY, left: track.scrollLeft };
+  }, { passive: true });
+  track.addEventListener('touchend', (event) => {
+    const point = event.changedTouches[0];
+    if (!point || !touch) return;
+    const dx = point.clientX - touch.x;
+    const dy = point.clientY - touch.y;
+    const nativeMoved = Math.abs(track.scrollLeft - touch.left) > 2;
+    if (!nativeMoved && Math.abs(dx) >= 40 && Math.abs(dx) > Math.abs(dy)) {
+      const current = Math.round(track.scrollLeft / track.clientWidth);
+      goTo(current + (dx < 0 ? 1 : -1));
+    }
+    touch = undefined;
+  }, { passive: true });
 }
 
 /**
@@ -94,6 +130,31 @@ function decorateReportViewAll(block) {
     block.querySelectorAll('.pdp-dialog-rows .pdp-report-row.is-hidden')
       .forEach((row) => row.classList.remove('is-hidden'));
     button.remove();
+  });
+}
+
+/**
+ * Expands/collapses the remaining categories in the desktop inline report.
+ *
+ * The mobile report has its own dialog-level View All control. The old desktop
+ * link only changed the URL hash (`#report`) and revealed no data.
+ *
+ * @param {HTMLElement} block
+ */
+function decorateDesktopReportMore(block) {
+  const button = block.querySelector('.pdp-report > .pdp-report-more');
+  if (!button) return;
+
+  const initialLabel = button.textContent;
+  const rows = [...block.querySelectorAll('.pdp-report > .pdp-report-row')];
+  const preview = rows.findIndex((row) => row.classList.contains('is-hidden'));
+  button.addEventListener('click', () => {
+    const hidden = rows.filter((row) => row.classList.contains('is-hidden'));
+    const expanded = hidden.length === 0;
+    rows.forEach((row, i) => {
+      if (i >= preview) row.classList.toggle('is-hidden', expanded);
+    });
+    button.textContent = expanded ? initialLabel : 'Show less';
   });
 }
 
@@ -142,6 +203,48 @@ function decorateStickyBar(block) {
       bar.classList.toggle('is-tucked', entry.isIntersecting);
     }, { threshold: 0 }).observe(footer);
   }
+}
+
+/**
+ * Opens Product Bus video media in a closable inline player.
+ *
+ * Video URLs are assigned only on click. This prevents a page with multiple
+ * 100MB+ dealer videos from downloading any MP4 before the viewer chooses one.
+ *
+ * @param {HTMLElement} block
+ */
+function decorateVideoPlayer(block) {
+  const dialog = block.querySelector('.pdp-video-dialog');
+  const player = dialog?.querySelector('.pdp-video-player');
+  const title = dialog?.querySelector('.pdp-video-title');
+  if (!dialog || !player) return;
+
+  const stop = () => {
+    player.pause();
+    player.removeAttribute('src');
+    player.load();
+  };
+
+  block.querySelectorAll('.pdp-video-link, .pdp-thumb.is-video').forEach((button) => {
+    button.addEventListener('click', () => {
+      player.src = button.dataset.videoUrl;
+      if (title) title.textContent = button.dataset.videoTitle || 'Video';
+      dialog.showModal();
+      document.documentElement.classList.add('pdp-dialog-open');
+      player.play().catch(() => {
+        // Browser autoplay policy may require the visible controls to be used.
+      });
+    });
+  });
+
+  dialog.querySelector('.pdp-dialog-close')?.addEventListener('click', () => dialog.close());
+  dialog.addEventListener('close', () => {
+    document.documentElement.classList.remove('pdp-dialog-open');
+    stop();
+  });
+  dialog.addEventListener('click', (event) => {
+    if (event.target === dialog) dialog.close();
+  });
 }
 
 /**
@@ -233,28 +336,44 @@ export default function decorate(block) {
   // `description` as a list. Capture both before the block is rebuilt; the first
   // picture is the in-flight LCP candidate.
   const pictures = [...block.querySelectorAll('picture')];
+  const videoByPicture = new Map();
+  pictures.forEach((picture) => {
+    const link = picture.parentElement?.querySelector('a[href]');
+    if (!link) return;
+    const label = picture.querySelector('img')?.getAttribute('alt') ?? '';
+    videoByPicture.set(picture, {
+      url: link.href,
+      // Pipeline link text is the generic "Video". The product-media label is
+      // preserved as image alt text (e.g. "... - WALK AROUND"), so use it for
+      // a useful accessible control label.
+      title: label.split(' - ').at(-1) || link.textContent.trim() || 'Video',
+    });
+  });
+  const photoPictures = pictures.filter((picture) => !videoByPicture.has(picture));
   const headingText = block.querySelector('h1')?.textContent?.trim() ?? '';
-  const accessories = [...block.querySelectorAll('ul li')]
-    .map((item) => item.textContent.trim())
-    .filter(Boolean);
-
   const name = title || headingText;
   block.textContent = '';
 
   block.append(buildHeader(eyebrow, name));
 
   const hero = add('div', 'pdp-main', block);
-  hero.append(buildGallery(pictures, name), buildPurchaseCard(custom, offer, name));
+  hero.append(
+    buildGallery(pictures, name, videoByPicture, custom.condition?.certification),
+    buildPurchaseCard(custom, offer, name),
+  );
 
   block.append(buildStats());
 
   const info = add('div', 'pdp-info', block);
-  info.append(buildSpecifications(), buildDetails(accessories));
+  info.append(buildSpecifications(), buildDetails());
 
+  const condition = buildCondition(custom, name, photoPictures);
   block.append(
-    buildCondition(custom, name, pictures),
-    buildSimilar(name, pictures),
-    buildStickyBar(offer),
+    ...[
+      condition,
+      buildSimilar(name, photoPictures, offer.priceCurrency),
+      buildStickyBar(offer),
+    ].filter(Boolean),
   );
 
   decorateGalleryInteractions(block);
@@ -265,4 +384,6 @@ export default function decorate(block) {
   wireDialog(block, '.pdp-dialog', '.pdp-condition-link', '.pdp-dialog-close');
   decorateStickyBar(block);
   decorateReportViewAll(block);
+  decorateDesktopReportMore(block);
+  decorateVideoPlayer(block);
 }

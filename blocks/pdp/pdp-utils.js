@@ -2,10 +2,31 @@
  * Shared helpers for the product detail page.
  */
 
-const MONEY = new Intl.NumberFormat('en-US', {
-  style: 'currency', currency: 'USD', maximumFractionDigits: 0,
-});
 const NUM = new Intl.NumberFormat('en-US');
+
+/**
+ * Formats a listing price in the currency the selling dealer supplied.
+ *
+ * Currency is a per-product value in Product Bus, not a storefront default:
+ * roughly one quarter of the loaded catalogue is priced outside USD. A module
+ * constant would render an AUD, CAD, EUR, or SGD price with the wrong currency
+ * and disagree with the Product JSON-LD offer.
+ *
+ * @param {string} [currency] ISO 4217 offer currency.
+ * @returns {Intl.NumberFormat}
+ */
+export function money(currency) {
+  try {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency', currency: currency || 'USD', maximumFractionDigits: 0,
+    });
+  } catch {
+    // A malformed source value must not stop the PDP from rendering.
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency', currency: 'USD', maximumFractionDigits: 0,
+    });
+  }
+}
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -23,6 +44,7 @@ const ICONS = {
   chevron: [['path', { d: 'm9 6 6 6-6 6' }]],
   close: [['path', { d: 'M6 6l12 12M18 6 6 18' }]],
   arrow: [['path', { d: 'M5 12h14m-6-6 6 6-6 6' }]],
+  play: [['path', { d: 'm9 5 10 7-10 7Z' }]],
   check: [['path', { d: 'm5 13 4 4L19 7' }]],
   external: [['path', { d: 'M14 4h6v6M20 4l-8 8M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5' }]],
   phone: [['path', { d: 'M6 3h3l2 5-2.5 1.5a11 11 0 0 0 5 5L15 12l5 2v3a2 2 0 0 1-2.2 2A16 16 0 0 1 4 5.2 2 2 0 0 1 6 3Z' }]],
@@ -114,4 +136,4 @@ export function readTitle(custom) {
   };
 }
 
-export { MONEY, NUM };
+export { NUM };
