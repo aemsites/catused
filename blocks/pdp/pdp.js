@@ -120,45 +120,6 @@ function decorateSaveButtons(block) {
 }
 
 /**
- * Reveals the remaining inspection categories inside the report dialog.
- * @param {HTMLElement} block
- */
-function decorateReportViewAll(block) {
-  const button = block.querySelector('.pdp-dialog-all');
-  if (!button) return;
-  button.addEventListener('click', () => {
-    block.querySelectorAll('.pdp-dialog-rows .pdp-report-row.is-hidden')
-      .forEach((row) => row.classList.remove('is-hidden'));
-    button.remove();
-  });
-}
-
-/**
- * Expands/collapses the remaining categories in the desktop inline report.
- *
- * The mobile report has its own dialog-level View All control. The old desktop
- * link only changed the URL hash (`#report`) and revealed no data.
- *
- * @param {HTMLElement} block
- */
-function decorateDesktopReportMore(block) {
-  const button = block.querySelector('.pdp-report > .pdp-report-more');
-  if (!button) return;
-
-  const initialLabel = button.textContent;
-  const rows = [...block.querySelectorAll('.pdp-report > .pdp-report-row')];
-  const preview = rows.findIndex((row) => row.classList.contains('is-hidden'));
-  button.addEventListener('click', () => {
-    const hidden = rows.filter((row) => row.classList.contains('is-hidden'));
-    const expanded = hidden.length === 0;
-    rows.forEach((row, i) => {
-      if (i >= preview) row.classList.toggle('is-hidden', expanded);
-    });
-    button.textContent = expanded ? initialLabel : 'Show less';
-  });
-}
-
-/**
  * Controls the sticky purchase bar across three states.
  *
  * 1. Hidden while the inline "Contact Dealer" button is still reachable -- the
@@ -267,6 +228,9 @@ function wireDialog(block, dialogSelector, openerSelector, closeSelector) {
   const lock = (on) => document.documentElement.classList.toggle('pdp-dialog-open', on);
 
   opener.addEventListener('click', () => {
+    // Closed dialogs such as the gallery drawer can defer their expensive DOM
+    // construction until the user explicitly opens them.
+    dialog.dispatchEvent(new Event('pdp:prepare'));
     dialog.showModal();
     lock(true);
   });
@@ -383,7 +347,5 @@ export default function decorate(block) {
   wireDialog(block, '.pdp-drawer', '.pdp-gallery-viewall', '.pdp-drawer-close');
   wireDialog(block, '.pdp-dialog', '.pdp-condition-link', '.pdp-dialog-close');
   decorateStickyBar(block);
-  decorateReportViewAll(block);
-  decorateDesktopReportMore(block);
   decorateVideoPlayer(block);
 }

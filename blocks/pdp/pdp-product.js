@@ -98,38 +98,42 @@ function buildGalleryDrawer(pictures, title, videoByPicture, certification) {
 
   const body = add('div', 'pdp-drawer-body', drawer);
 
-  const meta = add('div', 'pdp-drawer-meta', body);
-  addCertifiedBadge(meta, certification);
-  const save = add('button', 'pdp-save', meta);
-  save.type = 'button';
-  save.setAttribute('aria-label', `Save ${title}`);
-  save.setAttribute('aria-pressed', 'false');
-  save.append(icon('heart'));
+  // Drawer media is not part of the initial experience. Build its 30+ lazy
+  // pictures only when the viewer explicitly asks for View All.
+  drawer.addEventListener('pdp:prepare', () => {
+    const meta = add('div', 'pdp-drawer-meta', body);
+    addCertifiedBadge(meta, certification);
+    const save = add('button', 'pdp-save', meta);
+    save.type = 'button';
+    save.setAttribute('aria-label', `Save ${title}`);
+    save.setAttribute('aria-pressed', 'false');
+    save.append(icon('heart'));
 
-  const remaining = [...pictures];
-  const addGroup = (label, items) => {
-    if (!items.length) return;
-    add('h3', 'pdp-drawer-group', body, label);
-    const [first, ...rest] = items;
-    add('div', 'pdp-drawer-hero', body).append(drawerPhoto(first, videoByPicture.get(first)));
-    if (!rest.length) return;
-    const grid = add('div', 'pdp-drawer-grid', body);
-    rest.forEach((picture) => {
-      add('div', 'pdp-drawer-cell', grid).append(drawerPhoto(picture, videoByPicture.get(picture)));
+    const remaining = [...pictures];
+    const addGroup = (label, items) => {
+      if (!items.length) return;
+      add('h3', 'pdp-drawer-group', body, label);
+      const [first, ...rest] = items;
+      add('div', 'pdp-drawer-hero', body).append(drawerPhoto(first, videoByPicture.get(first)));
+      if (!rest.length) return;
+      const grid = add('div', 'pdp-drawer-grid', body);
+      rest.forEach((picture) => {
+        add('div', 'pdp-drawer-cell', grid).append(drawerPhoto(picture, videoByPicture.get(picture)));
+      });
+    };
+
+    const videoPictures = remaining.filter((picture) => videoByPicture.has(picture));
+    videoPictures.forEach((picture) => remaining.splice(remaining.indexOf(picture), 1));
+
+    PHOTO_GROUPS.forEach(([label, types]) => {
+      const items = remaining.filter((picture) => types.includes(photoType(picture)));
+      items.forEach((picture) => remaining.splice(remaining.indexOf(picture), 1));
+      addGroup(label, items);
     });
-  };
 
-  const videoPictures = remaining.filter((picture) => videoByPicture.has(picture));
-  videoPictures.forEach((picture) => remaining.splice(remaining.indexOf(picture), 1));
-
-  PHOTO_GROUPS.forEach(([label, types]) => {
-    const items = remaining.filter((picture) => types.includes(photoType(picture)));
-    items.forEach((picture) => remaining.splice(remaining.indexOf(picture), 1));
-    addGroup(label, items);
-  });
-
-  addGroup('Additional Photos', remaining);
-  addGroup('Videos', videoPictures);
+    addGroup('Additional Photos', remaining);
+    addGroup('Videos', videoPictures);
+  }, { once: true });
 
   return drawer;
 }

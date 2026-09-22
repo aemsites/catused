@@ -1709,8 +1709,3 @@ html.pdp-dialog-open body {
   background: var(--color-green);
 }
 
-.pdp-dialog-rows .pdp-report-row.is-hidden,
-.pdp-report > .pdp-report-row.is-hidden {
-  display: none;
-}
-
