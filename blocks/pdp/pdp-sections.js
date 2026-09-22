@@ -1,5 +1,5 @@
 import {
-  add, icon, money, NUM, thumbnail,
+  add, icon, money, NUM,
 } from './pdp-utils.js';
 /** Inspection categories shown before the "View All" reveal. */
 const REPORT_PREVIEW = 5;
@@ -437,7 +437,15 @@ export function buildSimilar(title, pictures, currency) {
 
     const media = add('div', 'pdp-listing-media', listing);
     const source = photos[index % Math.max(photos.length, 1)];
-    if (source) media.append(thumbnail(source, 320));
+    if (source) {
+      const clone = source.cloneNode(true);
+      const img = clone.querySelector('img');
+      if (img) {
+        img.setAttribute('loading', 'lazy');
+        img.removeAttribute('fetchpriority');
+      }
+      media.append(clone);
+    }
     add('span', 'pdp-listing-year', media, '2015');
     // Similar listings are still mocked; do not fabricate a certification badge.
 

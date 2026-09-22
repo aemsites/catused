@@ -1,5 +1,5 @@
 import {
-  add, icon, money, NUM, thumbnail,
+  add, icon, money, NUM,
 } from './pdp-utils.js';
 
 /**
@@ -267,7 +267,8 @@ export function buildGallery(pictures, title, videoByPicture, certification) {
       thumb.dataset.videoTitle = video.title;
     }
 
-    thumb.append(thumbnail(picture, 220));
+    const clone = picture.cloneNode(true);
+    thumb.append(clone);
     if (video) {
       const play = add('span', 'pdp-thumb-play', thumb);
       play.append(icon('play'));
