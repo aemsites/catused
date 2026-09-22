@@ -1,8 +1,6 @@
 import {
-  add, icon, MONEY, NUM,
+  add, icon, money, NUM,
 } from './pdp-utils.js';
-import { addCertifiedBadge } from './pdp-product.js';
-
 /** Inspection categories shown before the "View All" reveal. */
 const REPORT_PREVIEW = 5;
 
@@ -58,10 +56,9 @@ export function buildSpecifications() {
     add('p', 'pdp-muted', body, 'Specification data coming soon.');
   });
 
-  const all = add('a', 'pdp-more pdp-more-right', section, 'All Specs');
-  all.href = '#specs';
-  all.append(icon('arrow'));
-
+  // The feed does not carry a complete structured specification sheet, so there
+  // is no "All Specs" destination to promise yet. Keep the in-context accordions
+  // visible as an explicit coming-soon surface, but do not render a dead CTA.
   return section;
 }
 
@@ -77,7 +74,8 @@ function addDetailPanel(parent, title, items) {
   add('h3', 'pdp-detail-title', panel, title);
 
   items.forEach((text, i) => {
-    add('p', `pdp-detail-item${i >= VISIBLE ? ' is-hidden' : ''}`, panel, text);
+    const missing = text === 'Missing from Export';
+    add('p', `pdp-detail-item${missing ? ' pdp-detail-missing' : ''}${i >= VISIBLE ? ' is-hidden' : ''}`, panel, text);
   });
 
   const hidden = Math.max(items.length - VISIBLE, 0);
@@ -91,20 +89,20 @@ function addDetailPanel(parent, title, items) {
 /**
  * Details panels.
  *
- * Accessories are real: the pipeline renders the product `description`, which
- * for this feed is the dealer's option list.
+ * The export currently has neither fitted accessories/compatibility nor an
+ * additional-information payload. Keep the missing-source marker visible in
+ * both panels during product review instead of relabelling dealer feature text
+ * as accessories or showing fabricated Detail Item placeholders.
  *
- * @param {string[]} accessories
  * @returns {HTMLElement}
  */
-export function buildDetails(accessories = []) {
+export function buildDetails() {
   const section = document.createElement('section');
   section.className = 'pdp-card pdp-details-card';
   add('h2', 'pdp-card-title', section, 'Details');
 
-  addDetailPanel(section, 'Accessories', accessories);
-  // MOCK: no feed source for this list yet.
-  addDetailPanel(section, 'Additional Information', Array(5).fill('Detail Item'));
+  addDetailPanel(section, 'Accessories', ['Missing from Export']);
+  addDetailPanel(section, 'Additional Information', ['Missing from Export']);
 
   return section;
 }
@@ -117,7 +115,9 @@ export function buildDetails(accessories = []) {
 function gradesFor(value) {
   if (value === 'Good') return [['ok', 3]];
   if (value === 'Fair') return [['ok', 1], ['warn', 1], ['bad', 1]];
-  return [['warn', 1], ['bad', 1]];
+  if (value === 'Poor') return [['warn', 1], ['bad', 1]];
+  // Note-only sections such as TIRES or general remarks have no quality grade.
+  return [];
 }
 
 /**
@@ -189,20 +189,48 @@ function addDotScale(parent, filled) {
 const GRADE_DOTS = { Good: 3, Fair: 2, Poor: 1 };
 
 /**
+ * Returns detailed inspection categories when the Product Bus entry has them,
+ * with the legacy category->grade summary as a graceful fallback for entries
+ * imported before the full report was added.
+ *
+ * @param {object} custom
+ * @returns {{ name: string, grade?: string, items: object[] }[]}
+ */
+function inspectionCategories(custom) {
+  const inspection = custom.condition?.inspection ?? [];
+  if (inspection.length) return inspection;
+
+  return Object.entries(custom.condition?.inspectionSummary ?? {})
+    .map(([name, grade]) => ({ name, grade, items: [] }));
+}
+
+/**
  * Per-item detail for one inspection category.
  *
- * Undercarriage is real: the feed carries per-component wear measurements.
- * MOCK: every other category was collapsed to a single worst-grade during
- * ingest, so its line items are placeholders until the feed carries them.
+ * The full feed supplies item name, optional Good/Fair/Poor or Yes/No value,
+ * and optional inspector note. Yes/No is deliberately not converted into a
+ * quality grade: "Visible Oil Leaks: No" is good while "Cleaning Required:
+ * Yes" is not, and the field name—not the boolean alone—carries that meaning.
  *
- * @param {string} name
- * @param {string} value
+ * Undercarriage wear remains a fallback for legacy entries because it is held
+ * separately from the inspection item list.
+ *
+ * @param {{ name: string, grade?: string, items: object[] }} category
  * @param {object} custom
- * @returns {{ label: string, copy: string, dots: number }[]}
+ * @returns {{ label: string, copy?: string, value?: string, dots?: number }[]}
  */
-function detailItems(name, value, custom) {
+function detailItems(category, custom) {
+  if (category.items?.length) {
+    return category.items.map((item) => ({
+      label: item.name,
+      ...(item.note ? { copy: item.note } : {}),
+      ...(item.value ? { value: item.value } : {}),
+      ...(GRADE_DOTS[item.value] ? { dots: GRADE_DOTS[item.value] } : {}),
+    }));
+  }
+
   const wear = custom.condition?.undercarriageWear ?? [];
-  if (name.includes('UNDERCARRIAGE') && wear.length) {
+  if (category.name.includes('UNDERCARRIAGE') && wear.length) {
     return wear.slice(0, 6).map((item) => {
       const worn = item.left?.percentWorn ?? item.right?.percentWorn ?? 0;
       return {
@@ -213,11 +241,33 @@ function detailItems(name, value, custom) {
     });
   }
 
-  return ['Radiator Grill & Shroud', 'Steps/Ladder', 'Paint'].map((label) => ({
-    label,
-    copy: 'Sample text about category and its details would go here.',
-    dots: GRADE_DOTS[value] ?? 2,
-  }));
+  return [];
+}
+
+/**
+ * Photos that directly correspond to an inspection area.
+ *
+ * The feed does not associate arbitrary photos with arbitrary condition checks,
+ * so evidence is deliberately limited to typed assets. Today that means an
+ * ENGINE check can use an `engine` photo; generic exterior shots are never
+ * reused as pretend evidence for paint, hydraulics, tyres, or other findings.
+ *
+ * @param {string} categoryName
+ * @param {HTMLElement[]} pictures
+ * @returns {HTMLElement[]}
+ */
+function conditionEvidence(categoryName, pictures) {
+  const name = categoryName.toUpperCase();
+  let roles = [];
+  if (name.includes('ENGINE')) roles = ['engine'];
+  else if (name.includes('UNDERCARRIAGE')) roles = ['undercarriage'];
+  else if (name.includes('TIRE')) roles = ['tire'];
+
+  if (!roles.length) return [];
+  return pictures.filter((picture) => {
+    const src = picture.querySelector('img')?.getAttribute('src') ?? '';
+    return roles.some((role) => new RegExp(`_${role}(?:_\\d+)?\\.[a-z]+(?:\\?|$)`).test(src));
+  });
 }
 
 /**
@@ -227,43 +277,43 @@ function detailItems(name, value, custom) {
  * expanded/collapsed semantics come from the platform.
  *
  * @param {Element} parent
- * @param {string} name
- * @param {string} value
+ * @param {{ name: string, grade?: string, items: object[] }} category
  * @param {object} custom
  * @param {HTMLElement[]} pictures
  */
-function addReportRow(parent, name, value, custom, pictures = []) {
+function addReportRow(parent, category, custom, pictures = []) {
   const row = add('details', 'pdp-report-row', parent);
   const summary = add('summary', 'pdp-report-summary', row);
-  add('span', 'pdp-report-name', summary, name);
+  add('span', 'pdp-report-name', summary, category.name);
 
   const grades = add('span', 'pdp-report-grades', summary);
-  gradesFor(value).forEach(([kind, count]) => {
+  gradesFor(category.grade).forEach(([kind, count]) => {
     const grade = add('span', `pdp-grade pdp-grade-${kind}`, grades, String(count));
     grade.prepend(icon(GRADE_ICON[kind]));
   });
   summary.append(icon('chevron', 'pdp-report-chevron'));
 
   const body = add('div', 'pdp-report-body', row);
-  detailItems(name, value, custom).forEach((item) => {
+
+  // Keep full source-backed condition content in the initial rendered DOM. Search
+  // crawlers do not expand custom controls, so creating checks only on <details>
+  // toggle would make listing-specific inspection text undiscoverable.
+  detailItems(category, custom).forEach((item) => {
     const entry = add('div', 'pdp-report-item', body);
     const head = add('div', 'pdp-report-item-head', entry);
     add('span', 'pdp-report-item-name', head, item.label);
-    addDotScale(head, item.dots);
-    add('p', 'pdp-report-item-copy', entry, item.copy);
+    if (item.dots) addDotScale(head, item.dots);
+    else if (item.value) add('span', 'pdp-report-item-value', head, item.value);
+    if (item.copy) add('p', 'pdp-report-item-copy', entry, item.copy);
   });
 
-  if (!pictures.length) return;
-  add('h4', 'pdp-report-images-title', body, 'Images');
-  const strip = add('div', 'pdp-report-images', body);
-  pictures.slice(0, 3).forEach((picture) => {
+  const evidence = conditionEvidence(category.name, pictures);
+  if (!evidence.length) return;
+
+  const media = add('div', 'pdp-report-evidence', body);
+  evidence.forEach((picture) => {
     const clone = picture.cloneNode(true);
-    const img = clone.querySelector('img');
-    if (img) {
-      img.setAttribute('loading', 'lazy');
-      img.removeAttribute('fetchpriority');
-    }
-    add('div', 'pdp-report-image', strip).append(clone);
+    add('div', 'pdp-report-evidence-image', media).append(clone);
   });
 }
 
@@ -275,6 +325,7 @@ function addReportRow(parent, name, value, custom, pictures = []) {
  *
  * @param {object} custom
  * @param {string} title
+ * @param {HTMLElement[]} pictures
  * @returns {HTMLElement}
  */
 function buildConditionDialog(custom, title, pictures) {
@@ -292,16 +343,23 @@ function buildConditionDialog(custom, title, pictures) {
   const body = add('div', 'pdp-dialog-body', dialog);
   body.append(buildAssistant(custom, title));
 
-  const entries = Object.entries(custom.condition?.inspectionSummary ?? {});
+  // This duplicates the desktop report for the mobile dialog, but keeps the
+  // complete report in the rendered DOM without requiring a crawler click.
+  const categories = inspectionCategories(custom);
   const rows = add('div', 'pdp-dialog-rows', body);
-  entries.forEach(([name, value], i) => {
-    addReportRow(rows, name, value, custom, pictures);
+  categories.forEach((category, i) => {
+    addReportRow(rows, category, custom, pictures);
     if (i >= REPORT_PREVIEW) rows.lastElementChild.classList.add('is-hidden');
   });
 
-  if (entries.length > REPORT_PREVIEW) {
+  if (categories.length > REPORT_PREVIEW) {
     const all = add('button', 'pdp-btn pdp-btn-secondary pdp-dialog-all', body, 'View All');
     all.type = 'button';
+    all.addEventListener('click', () => {
+      rows.querySelectorAll('.pdp-report-row.is-hidden')
+        .forEach((row) => row.classList.remove('is-hidden'));
+      all.remove();
+    });
   }
 
   return dialog;
@@ -311,9 +369,14 @@ function buildConditionDialog(custom, title, pictures) {
  * Condition report, driven by the feed's inspection summary.
  * @param {object} custom
  * @param {string} title
- * @returns {HTMLElement}
+ * @param {HTMLElement[]} [pictures]
+ * @returns {HTMLElement|undefined}
  */
 export function buildCondition(custom, title, pictures = []) {
+  const categories = inspectionCategories(custom);
+  // Do not show a title/CTA for the 65% of listings that have no actual report.
+  if (!categories.length) return undefined;
+
   const section = document.createElement('section');
   section.className = 'pdp-card pdp-condition';
   add('h2', 'pdp-card-title pdp-card-title-rule', section, 'Condition Report');
@@ -323,16 +386,24 @@ export function buildCondition(custom, title, pictures = []) {
   addAssistantDetail(custom, assistant);
   grid.append(assistant);
 
-  const entries = Object.entries(custom.condition?.inspectionSummary ?? {});
   const report = add('div', 'pdp-report', grid);
   add('h3', 'pdp-report-title', report, 'Full Report');
-  entries.slice(0, 5).forEach(([name, value]) => {
-    addReportRow(report, name, value, custom, pictures);
+  categories.forEach((category, i) => {
+    addReportRow(report, category, custom, pictures);
+    if (i >= REPORT_PREVIEW) report.lastElementChild.classList.add('is-hidden');
   });
 
-  if (entries.length > 5) {
-    const more = add('a', 'pdp-link pdp-report-more', report, `View ${entries.length - 5} More`);
-    more.href = '#report';
+  if (categories.length > REPORT_PREVIEW) {
+    const more = add('button', 'pdp-link pdp-report-more', report, `View ${categories.length - REPORT_PREVIEW} More`);
+    more.type = 'button';
+    more.addEventListener('click', () => {
+      const expanded = more.dataset.expanded === 'true';
+      report.querySelectorAll('.pdp-report-row.is-hidden').forEach((row) => {
+        row.classList.toggle('is-hidden', expanded);
+      });
+      more.dataset.expanded = String(!expanded);
+      more.textContent = expanded ? `View ${categories.length - REPORT_PREVIEW} More` : 'Show less';
+    });
   }
 
   // Mobile collapses the itemised report behind a link that opens the dialog.
@@ -353,7 +424,8 @@ export function buildCondition(custom, title, pictures = []) {
  * @param {HTMLElement[]} pictures
  * @returns {HTMLElement}
  */
-export function buildSimilar(title, pictures = []) {
+export function buildSimilar(title, pictures, currency) {
+  const photos = pictures ?? [];
   const section = document.createElement('section');
   section.className = 'pdp-similar';
   add('h2', 'pdp-section-title', section, 'Similar Listings');
@@ -364,7 +436,7 @@ export function buildSimilar(title, pictures = []) {
     const listing = add('article', 'pdp-listing', grid);
 
     const media = add('div', 'pdp-listing-media', listing);
-    const source = pictures[index % Math.max(pictures.length, 1)];
+    const source = photos[index % Math.max(photos.length, 1)];
     if (source) {
       const clone = source.cloneNode(true);
       const img = clone.querySelector('img');
@@ -375,7 +447,7 @@ export function buildSimilar(title, pictures = []) {
       media.append(clone);
     }
     add('span', 'pdp-listing-year', media, '2015');
-    addCertifiedBadge(media, 'pdp-badge-sm');
+    // Similar listings are still mocked; do not fabricate a certification badge.
 
     const body = add('div', 'pdp-listing-body', listing);
     const head = add('div', 'pdp-listing-head', body);
@@ -401,7 +473,7 @@ export function buildSimilar(title, pictures = []) {
 
     const price = add('div', 'pdp-listing-price', body);
     add('span', 'pdp-spec-label', price, 'Base price');
-    add('span', 'pdp-listing-amount', price, MONEY.format(79500));
+    add('span', 'pdp-listing-amount', price, money(currency).format(79500));
 
     const details = add('button', 'pdp-btn pdp-btn-primary pdp-btn-sm', body, 'Details');
     details.type = 'button';
@@ -420,8 +492,13 @@ export function buildStickyBar(offer) {
   bar.className = 'pdp-sticky';
 
   const price = Number(offer.price);
+  const currency = offer.priceCurrency;
+  const formatted = Number.isFinite(price) ? money(currency).format(price) : '';
+  const label = Number.isFinite(price)
+    ? `${formatted}${currency && !formatted.includes(currency) ? ` ${currency}` : ''}`
+    : 'Call for price';
   const column = add('div', 'pdp-sticky-price', bar);
-  const amount = add('span', 'pdp-sticky-amount', column, Number.isFinite(price) ? `${MONEY.format(price)} USD` : 'Call for price');
+  const amount = add('span', 'pdp-sticky-amount', column, label);
   amount.append(icon('info', 'pdp-sticky-info'));
   add('span', 'pdp-sticky-label', column, 'Est. Total Price');
 

@@ -68,61 +68,6 @@ function needsPDPSimulation() {
 }
 
 /**
- * Raises the priority of the PDP hero image.
- *
- * The product pipeline emits every image with `loading="lazy"`, including the
- * first one, so the browser's preload scanner deliberately skips it. Nothing
- * fetches the LCP candidate until something flips it back to eager.
- *
- * Called from the first line of `loadEager`, before any `await`, which is
- * effectively as early as module top-level -- `loadPage()` runs at the bottom of
- * this module, so only function declarations separate the two. A
- * `<link rel=preload>` is injected alongside the attribute flip because the link
- * starts fetching immediately, whereas the `<img>` cannot begin until style and
- * layout have resolved which `<source>` applies.
- *
- * `blocks/pdp/pdp.js` then *moves* this element into the gallery instead of
- * cloning it, so the in-flight request is never orphaned and the painted node
- * is the one already being fetched.
- */
-function prioritizeHeroImage() {
-  const picture = document.querySelector('main picture');
-  const img = picture?.querySelector('img');
-  if (!img) return;
-
-  img.setAttribute('loading', 'eager');
-  img.setAttribute('fetchpriority', 'high');
-  picture.dataset.lcp = 'true';
-
-  // Emit one preload per <source>, carrying its media query, so the browser
-  // preloads exactly the variant it will render. Preloading a single source
-  // without its media condition downloads the hero twice -- once for the
-  // preload, once for the <picture> the viewport actually matches.
-  const sources = [...picture.querySelectorAll('source[type="image/webp"]')];
-  if (sources.length) {
-    sources.forEach((source) => {
-      const link = document.createElement('link');
-      link.rel = 'preload';
-      link.as = 'image';
-      link.setAttribute('fetchpriority', 'high');
-      link.type = source.type;
-      link.imageSrcset = source.srcset;
-      if (source.media) link.media = source.media;
-      else link.media = 'not all and (min-width: 600px)';
-      document.head.append(link);
-    });
-    return;
-  }
-
-  const link = document.createElement('link');
-  link.rel = 'preload';
-  link.as = 'image';
-  link.setAttribute('fetchpriority', 'high');
-  link.href = img.getAttribute('src');
-  document.head.append(link);
-}
-
-/**
  * Returns the two-letter language code for the current page.
  * @returns {string}
  */
@@ -479,9 +424,6 @@ async function loadEager(doc) {
   // Product pages only exist on the pipeline origin; everywhere else, fetch the
   // rendered document before decorating so the block has markup to work with.
   if (needsPDPSimulation()) await simulatePDPPreview();
-
-  // Scoped to product pages, and ahead of everything else on them.
-  if (isProductPage()) prioritizeHeroImage();
 
   decorateTemplateAndTheme();
 

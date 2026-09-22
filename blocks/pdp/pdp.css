@@ -195,6 +195,7 @@
 }
 
 .pdp-gallery-slide {
+  position: relative;
   flex: 0 0 100%;
   height: 100%;
   scroll-snap-align: center;
@@ -220,6 +221,52 @@
   object-fit: cover;
 }
 
+.pdp-video-link {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-white);
+  font-family: var(--text-font-family);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.pdp-video-link-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+}
+
+.pdp-video-control {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 72%);
+  color: var(--color-white);
+  transform: translate(-50%, -50%);
+}
+
+.pdp-video-control svg {
+  width: 22px;
+  height: 22px;
+  fill: currentcolor;
+  stroke: none;
+}
+
+.pdp-video-link:focus-visible {
+  outline: 3px solid var(--color-brand);
+  outline-offset: -3px;
+}
+
 .pdp-gallery-hero .pdp-badge {
   position: absolute;
   top: var(--space-200);
@@ -240,6 +287,14 @@
   gap: var(--space-300);
   align-items: center;
   justify-content: center;
+}
+
+.pdp-gallery-count {
+  min-width: 48px;
+  color: var(--color-muted);
+  font-size: var(--text-s);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
 }
 
 .pdp-dot {
@@ -696,6 +751,12 @@
   font-size: var(--text-s);
 }
 
+/* Explicit review marker, not a fabricated product fact. */
+.pdp-detail-missing {
+  color: var(--color-muted);
+  font-style: italic;
+}
+
 /* Rendered as a <button>, so the :any-link link rules do not reach it. */
 .pdp-detail-more {
   color: var(--color-link);
@@ -855,10 +916,18 @@
   transform: rotate(-90deg);
 }
 
-.pdp-report-more {
+.pdp .pdp-report-more {
   justify-content: center;
   width: 100%;
   margin-top: var(--space-400);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-link);
+  font-family: var(--text-font-family);
+  font-size: var(--text-s);
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 /* --------------------------------------------------------------- similar -- */
@@ -1093,13 +1162,21 @@
 
   .pdp-gallery-thumbs {
     order: 2;
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    display: flex;
     gap: var(--space-300);
     margin-top: var(--space-300);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+
+  .pdp-gallery-thumbs::-webkit-scrollbar {
+    display: none;
   }
 
   .pdp-thumb {
+    position: relative;
+    flex: 0 0 calc((100% - 3 * var(--space-300)) / 4);
     padding: 0;
     border: 2px solid transparent;
     border-radius: var(--radius-s);
@@ -1116,6 +1193,26 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
+  }
+
+  .pdp-thumb-play {
+    position: absolute;
+    inset: 50% auto auto 50%;
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: rgb(0 0 0 / 72%);
+    color: var(--color-white);
+    transform: translate(-50%, -50%);
+  }
+
+  .pdp-thumb-play svg {
+    width: 14px;
+    height: 14px;
+    fill: currentcolor;
+    stroke: none;
   }
 
   .pdp-gallery-bar {
@@ -1145,6 +1242,11 @@
     display: flex;
     padding: var(--space-400) var(--pdp-gutter) 0;
   }
+
+  /* When a listing is not Cat Certified Used the badge is absent, leaving the
+     save control as the only child; pin it right instead of relying on
+     space-between to distribute two children. */
+  .pdp-purchase-head .pdp-save { margin-left: auto; }
 
   .pdp-price {
     padding-top: var(--space-300);
@@ -1248,7 +1350,9 @@
     border-radius: var(--pdp-card-radius);
   }
 
-  .pdp-condition-link { display: none; }
+  /* Match the base `.pdp .pdp-more` specificity; otherwise its display:flex
+     wins even inside this later media query and leaks the mobile dialog CTA. */
+  .pdp .pdp-condition-link { display: none; }
 
   /* ------- similar ------- */
 
@@ -1352,6 +1456,38 @@
 @media (width >= 900px) {
   /* Desktop shows the report inline, so the dialog is never reachable. */
   .pdp-dialog { display: none; }
+}
+
+/* ----------------------------------------------------------- video player -- */
+
+.pdp-video-dialog {
+  width: min(100vw - 32px, 960px);
+  max-height: 90dvh;
+  padding: 0;
+  border: 0;
+  border-radius: var(--pdp-card-radius);
+  background: var(--color-black);
+  color: var(--color-white);
+  overflow: hidden;
+}
+
+.pdp-video-dialog::backdrop {
+  background: rgb(0 0 0 / 70%);
+}
+
+.pdp-video-dialog .pdp-dialog-head {
+  border-color: rgb(255 255 255 / 25%);
+}
+
+.pdp-video-dialog .pdp-dialog-close {
+  color: var(--color-white);
+}
+
+.pdp-video-player {
+  display: block;
+  width: 100%;
+  max-height: calc(90dvh - 65px);
+  background: var(--color-black);
 }
 
 /* --------------------------------------------------------- gallery drawer -- */
@@ -1510,10 +1646,51 @@ html.pdp-dialog-open body {
   font-weight: 700;
 }
 
+/* Yes/No checks are facts, not a universal good/bad scale: the check's label
+   defines whether an answer is favourable. Keep the source value neutral. */
+.pdp-report-item-value {
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-light);
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  line-height: 1;
+}
+
 .pdp-report-item-copy {
   margin: var(--space-100) 0 0;
   font-size: var(--text-s);
   line-height: var(--lh-s);
+}
+
+/* Evidence only appears when a typed source photo directly matches the report
+   category, never by repeating generic gallery photos under every check. */
+.pdp-report-evidence {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-300);
+  margin-top: var(--space-400);
+}
+
+.pdp-report-evidence-image {
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius-s);
+  overflow: hidden;
+  background: var(--color-bg-light);
+}
+
+.pdp-report-evidence-image picture,
+.pdp-report-evidence-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pdp-dialog-rows .pdp-report-row.is-hidden,
+.pdp-report > .pdp-report-row.is-hidden {
+  display: none;
 }
 
 .pdp-scale {
@@ -1535,36 +1712,5 @@ html.pdp-dialog-open body {
 
 .pdp-scale-dot.is-filled {
   background: var(--color-green);
-}
-
-.pdp-report-images-title {
-  margin: var(--space-400) 0 var(--space-200);
-  font-size: var(--text-xs);
-  font-weight: 700;
-}
-
-.pdp-report-images {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-200);
-}
-
-.pdp-report-image {
-  aspect-ratio: 1 / 1;
-  border-radius: var(--radius-s);
-  overflow: hidden;
-  background: var(--color-gray-5);
-}
-
-.pdp-report-image picture,
-.pdp-report-image img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.pdp-dialog-rows .pdp-report-row.is-hidden {
-  display: none;
 }
 

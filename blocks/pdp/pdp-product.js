@@ -1,24 +1,22 @@
 import {
-  add, icon, MONEY, NUM,
+  add, icon, money, NUM,
 } from './pdp-utils.js';
-
-/**
- * How many images the inline gallery cycles through. The rest are reachable via
- * "View All"; keeping dots and thumbnails on the same count keeps them in sync.
- */
-const GALLERY_WINDOW = 5;
 
 /**
  * Appends the Cat Certified Used lockup.
  *
- * MOCK: the feed reports "No Certification" for this unit; the design always
- * shows the badge.
+ * Renders only for Cat Certified Used (`CCU`) inventory. The original visual
+ * mock showed it on every machine, but the live Product Bus entry carries a
+ * certification code and displaying a Cat-certified trust badge on an `NCR`
+ * (No Certification) listing would be a false claim.
  *
  * @param {Element} parent
+ * @param {{ code?: string }|undefined} certification
  * @param {string} [extraClass]
- * @returns {HTMLElement}
+ * @returns {HTMLElement|undefined}
  */
-function addCertifiedBadge(parent, extraClass = '') {
+function addCertifiedBadge(parent, certification, extraClass = '') {
+  if (certification?.code !== 'CCU') return undefined;
   const badge = add('span', `pdp-badge pdp-badge-certified ${extraClass}`.trim(), parent);
   add('span', 'pdp-badge-cat', badge, 'CAT');
   const text = add('span', 'pdp-badge-text', badge);
@@ -55,16 +53,23 @@ function photoType(picture) {
  * Clones a photo for the drawer, lazily loaded so it never competes with the
  * hero for bandwidth.
  * @param {Element} picture
+ * @param {{ url: string, title: string }|undefined} video
  * @returns {Element}
  */
-function drawerPhoto(picture) {
+function drawerPhoto(picture, video) {
   const clone = picture.cloneNode(true);
-  const img = clone.querySelector('img');
-  if (img) {
-    img.setAttribute('loading', 'lazy');
-    img.removeAttribute('fetchpriority');
-  }
-  return clone;
+  if (!video) return clone;
+
+  const link = document.createElement('button');
+  link.className = 'pdp-video-link';
+  link.type = 'button';
+  link.dataset.videoUrl = video.url;
+  link.dataset.videoTitle = video.title;
+  link.setAttribute('aria-label', `Play video: ${video.title}`);
+  link.append(clone);
+  const control = add('span', 'pdp-video-control', link);
+  control.append(icon('play'));
+  return link;
 }
 
 /**
@@ -76,9 +81,10 @@ function drawerPhoto(picture) {
  *
  * @param {HTMLElement[]} pictures
  * @param {string} title
+ * @param {Map<HTMLElement, { url: string, title: string }>} videoByPicture
  * @returns {HTMLElement}
  */
-function buildGalleryDrawer(pictures, title) {
+function buildGalleryDrawer(pictures, title, videoByPicture, certification) {
   const drawer = document.createElement('dialog');
   drawer.className = 'pdp-drawer';
   drawer.setAttribute('aria-label', `${title} images`);
@@ -92,34 +98,91 @@ function buildGalleryDrawer(pictures, title) {
 
   const body = add('div', 'pdp-drawer-body', drawer);
 
-  const meta = add('div', 'pdp-drawer-meta', body);
-  addCertifiedBadge(meta);
-  const save = add('button', 'pdp-save', meta);
-  save.type = 'button';
-  save.setAttribute('aria-label', `Save ${title}`);
-  save.setAttribute('aria-pressed', 'false');
-  save.append(icon('heart'));
+  // Drawer media is not part of the initial experience. Build its 30+ lazy
+  // pictures only when the viewer explicitly asks for View All.
+  drawer.addEventListener('pdp:prepare', () => {
+    const meta = add('div', 'pdp-drawer-meta', body);
+    addCertifiedBadge(meta, certification);
+    const save = add('button', 'pdp-save', meta);
+    save.type = 'button';
+    save.setAttribute('aria-label', `Save ${title}`);
+    save.setAttribute('aria-pressed', 'false');
+    save.append(icon('heart'));
 
-  const remaining = [...pictures];
-  const addGroup = (label, items) => {
-    if (!items.length) return;
-    add('h3', 'pdp-drawer-group', body, label);
-    const [first, ...rest] = items;
-    add('div', 'pdp-drawer-hero', body).append(drawerPhoto(first));
-    if (!rest.length) return;
-    const grid = add('div', 'pdp-drawer-grid', body);
-    rest.forEach((picture) => add('div', 'pdp-drawer-cell', grid).append(drawerPhoto(picture)));
-  };
+    const remaining = [...pictures];
+    const addGroup = (label, items) => {
+      if (!items.length) return;
+      add('h3', 'pdp-drawer-group', body, label);
+      const [first, ...rest] = items;
+      add('div', 'pdp-drawer-hero', body).append(drawerPhoto(first, videoByPicture.get(first)));
+      if (!rest.length) return;
+      const grid = add('div', 'pdp-drawer-grid', body);
+      rest.forEach((picture) => {
+        add('div', 'pdp-drawer-cell', grid).append(drawerPhoto(picture, videoByPicture.get(picture)));
+      });
+    };
 
-  PHOTO_GROUPS.forEach(([label, types]) => {
-    const items = remaining.filter((picture) => types.includes(photoType(picture)));
-    items.forEach((picture) => remaining.splice(remaining.indexOf(picture), 1));
-    addGroup(label, items);
-  });
+    const videoPictures = remaining.filter((picture) => videoByPicture.has(picture));
+    videoPictures.forEach((picture) => remaining.splice(remaining.indexOf(picture), 1));
 
-  addGroup('Additional Photos', remaining);
+    PHOTO_GROUPS.forEach(([label, types]) => {
+      const items = remaining.filter((picture) => types.includes(photoType(picture)));
+      items.forEach((picture) => remaining.splice(remaining.indexOf(picture), 1));
+      addGroup(label, items);
+    });
+
+    addGroup('Additional Photos', remaining);
+    addGroup('Videos', videoPictures);
+  }, { once: true });
 
   return drawer;
+}
+
+/**
+ * Adds a button that opens the in-page video dialog.
+ * @param {Element} parent
+ * @param {{ url: string, title: string }} video
+ * @param {string} className
+ * @param {string} [label]
+ * @returns {HTMLElement}
+ */
+function addVideoButton(parent, video, className) {
+  const button = add('button', className, parent);
+  button.type = 'button';
+  button.dataset.videoUrl = video.url;
+  button.dataset.videoTitle = video.title;
+  button.setAttribute('aria-label', `Play video: ${video.title}`);
+  const control = add('span', 'pdp-video-control', button);
+  control.append(icon('play'));
+  return button;
+}
+
+/**
+ * Inline, closable video player. Source is assigned only when a viewer chooses
+ * a video, so the browser does not download any large MP4 during initial PDP
+ * rendering.
+ *
+ * @param {string} title
+ * @returns {HTMLDialogElement}
+ */
+function buildVideoDialog(title) {
+  const dialog = document.createElement('dialog');
+  dialog.className = 'pdp-video-dialog';
+  dialog.setAttribute('aria-label', `${title} video player`);
+
+  const head = add('div', 'pdp-dialog-head', dialog);
+  add('h2', 'pdp-dialog-title pdp-video-title', head, 'Video');
+  const close = add('button', 'pdp-dialog-close', head);
+  close.type = 'button';
+  close.setAttribute('aria-label', 'Close video player');
+  close.append(icon('close'));
+
+  const player = add('video', 'pdp-video-player', dialog);
+  player.controls = true;
+  player.playsInline = true;
+  player.preload = 'metadata';
+
+  return dialog;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -129,16 +192,16 @@ function buildGalleryDrawer(pictures, title) {
 /**
  * Builds the gallery from the pictures the pipeline already rendered.
  *
- * The hero `<picture>` is **moved**, never cloned. `scripts.js` has already
- * flipped it to eager/high priority and preloaded it, so the request is in
- * flight by the time this runs; cloning would orphan that request and register
- * the LCP element against a node created later.
+ * The hero `<picture>` is **moved**, never cloned. That preserves the first
+ * pipeline image node for EDS's normal section/LCP handling instead of creating
+ * a late duplicate that the browser treats as a separate image.
  *
  * @param {HTMLElement[]} pictures
  * @param {string} title
+ * @param {Map<HTMLElement, { url: string, title: string }>} [videoByPicture]
  * @returns {HTMLElement}
  */
-export function buildGallery(pictures, title) {
+export function buildGallery(pictures, title, videoByPicture, certification) {
   const gallery = document.createElement('div');
   gallery.className = 'pdp-gallery';
 
@@ -152,32 +215,26 @@ export function buildGallery(pictures, title) {
   track.setAttribute('role', 'group');
   track.setAttribute('aria-label', `${title} images`);
 
-  pictures.slice(0, GALLERY_WINDOW).forEach((picture, i) => {
+  pictures.forEach((picture, i) => {
     const slide = add('div', 'pdp-gallery-slide', track);
     if (i === 0) {
-      // Moved, never cloned: scripts.js has already flipped this one to eager
-      // and preloaded it, so the request is in flight. Cloning would orphan it
-      // and register the LCP element against a node created later.
+      // Moved, never cloned: preserve the pipeline's first image node so EDS
+      // can apply its normal first-image LCP handling.
       const img = picture.querySelector('img');
-      if (img) {
-        img.setAttribute('loading', 'eager');
-        img.setAttribute('fetchpriority', 'high');
-        if (!img.getAttribute('alt')) img.setAttribute('alt', title);
-      }
+      if (img && !img.getAttribute('alt')) img.setAttribute('alt', title);
       slide.append(picture);
+      const video = videoByPicture.get(picture);
+      if (video) addVideoButton(slide, video, 'pdp-video-link pdp-video-link-overlay');
       return;
     }
     const clone = picture.cloneNode(true);
-    const img = clone.querySelector('img');
-    if (img) {
-      img.setAttribute('loading', 'lazy');
-      img.removeAttribute('fetchpriority');
-    }
     slide.append(clone);
+    const video = videoByPicture.get(picture);
+    if (video) addVideoButton(slide, video, 'pdp-video-link pdp-video-link-overlay');
   });
 
   // Outside the track so it stays put while the photos move.
-  addCertifiedBadge(hero);
+  addCertifiedBadge(hero, certification);
 
   // Dots centre in the viewport while "View All" sits at the right gutter, so
   // they share one grid row rather than being pulled together by margins.
@@ -188,37 +245,44 @@ export function buildGallery(pictures, title) {
   prev.setAttribute('aria-label', 'Previous image');
   prev.append(icon('chevron'));
 
-  pictures.slice(0, GALLERY_WINDOW).forEach((_, i) => {
-    const dot = add('button', `pdp-dot${i === 0 ? ' is-active' : ''}`, dots);
-    dot.type = 'button';
-    dot.setAttribute('aria-label', `Show image ${i + 1}`);
-  });
+  const count = add('output', 'pdp-gallery-count', dots, `1 / ${pictures.length}`);
+  count.setAttribute('aria-live', 'polite');
 
   const next = add('button', 'pdp-gallery-arrow', dots);
   next.type = 'button';
   next.setAttribute('aria-label', 'Next image');
   next.append(icon('chevron'));
 
+  // Every media item gets a desktop shortcut. The rail stays one horizontal row
+  // and scrolls rather than wrapping its fifth thumbnail underneath the first
+  // four. Video posters use the same rail, marked with a play affordance.
   const thumbs = add('div', 'pdp-gallery-thumbs', gallery);
-  pictures.slice(0, GALLERY_WINDOW).forEach((picture, i) => {
-    const thumb = add('button', `pdp-thumb${i === 0 ? ' is-active' : ''}`, thumbs);
+  pictures.forEach((picture, i) => {
+    const video = videoByPicture.get(picture);
+    const thumb = add('button', `pdp-thumb${i === 0 ? ' is-active' : ''}${video ? ' is-video' : ''}`, thumbs);
     thumb.type = 'button';
-    thumb.setAttribute('aria-label', `View image ${i + 1}`);
+    thumb.setAttribute('aria-label', video ? `Play video: ${video.title}` : `View image ${i + 1}`);
+    if (video) {
+      thumb.dataset.videoUrl = video.url;
+      thumb.dataset.videoTitle = video.title;
+    }
 
     const clone = picture.cloneNode(true);
-    const img = clone.querySelector('img');
-    if (img) {
-      img.setAttribute('loading', 'lazy');
-      img.removeAttribute('fetchpriority');
-    }
     thumb.append(clone);
+    if (video) {
+      const play = add('span', 'pdp-thumb-play', thumb);
+      play.append(icon('play'));
+    }
   });
 
   const viewAll = add('button', 'pdp-gallery-viewall', bar, 'View All');
   viewAll.type = 'button';
   viewAll.append(icon('chevron'));
 
-  gallery.append(buildGalleryDrawer(pictures, title));
+  gallery.append(
+    buildGalleryDrawer(pictures, title, videoByPicture, certification),
+    buildVideoDialog(title),
+  );
 
   return gallery;
 }
@@ -336,7 +400,7 @@ function addGroupTitle(parent, rest) {
  * MOCK: protection plans are not in the Product Bus feed.
  * @param {Element} parent
  */
-function addProtections(parent) {
+function addProtections(parent, formatter) {
   const group = add('section', 'pdp-group', parent);
   addGroupTitle(group, 'Additional Protections');
 
@@ -352,7 +416,7 @@ function addProtections(parent) {
       selected: false,
     },
   ].forEach((plan) => addOption(group, {
-    ...plan, price: MONEY.format(5000), link: 'Learn More', group: 'protection',
+    ...plan, price: formatter.format(5000), link: 'Learn More', group: 'protection',
   }));
 }
 
@@ -390,7 +454,7 @@ export function buildPurchaseCard(custom, offer, title) {
   card.className = 'pdp-purchase';
 
   const head = add('div', 'pdp-purchase-head', card);
-  addCertifiedBadge(head, 'pdp-badge-inline');
+  addCertifiedBadge(head, custom.condition?.certification, 'pdp-badge-inline');
   const save = add('button', 'pdp-save', head);
   save.type = 'button';
   save.setAttribute('aria-label', `Save ${title}`);
@@ -398,15 +462,16 @@ export function buildPurchaseCard(custom, offer, title) {
   save.append(icon('heart'));
 
   const price = Number(offer.price);
+  const formatter = money(offer.priceCurrency);
   const priceRow = add('div', 'pdp-price', card);
   add('span', 'pdp-price-label', priceRow, 'Base Price:');
-  add('span', 'pdp-price-value', priceRow, Number.isFinite(price) ? MONEY.format(price) : 'Call for price');
+  add('span', 'pdp-price-value', priceRow, Number.isFinite(price) ? formatter.format(price) : 'Call for price');
 
   addSpecStrip(card, custom, offer);
   addDealer(card, custom);
 
   const body = add('div', 'pdp-purchase-body', card);
-  addProtections(body);
+  addProtections(body, formatter);
   addAttachments(body);
 
   const actions = add('div', 'pdp-actions', card);
