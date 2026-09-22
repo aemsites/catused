@@ -11,13 +11,13 @@
   display: block;
 }
 
-.columns.columns-3-cols div div:first-child {
-  display: none;
-}
-
 /* special case for 3 columns, probably too inclusive */
 .columns.columns-3-cols div:last-child {
   order: 0;
+}
+
+.columns.columns-3-cols div div:first-child {
+  display: none;
 }
 
 @media (width >= 900px) {
@@ -32,10 +32,8 @@
     order: unset;
   }
 
-/* special case for 3 columns, probably too inclusive */
-.columns.columns-3-cols div div:first-child {
+  /* special case for 3 columns, probably too inclusive */
+  .columns.columns-3-cols div div:first-child {
     display: unset;
-  }  
+  }
 }
-
-
