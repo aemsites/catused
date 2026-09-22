@@ -2,6 +2,8 @@
  * Shared helpers for the product detail page.
  */
 
+import { createOptimizedPicture } from '../../scripts/aem.js';
+
 const NUM = new Intl.NumberFormat('en-US');
 
 /**
@@ -103,36 +105,27 @@ export function add(tag, className, parent, text) {
 }
 
 /**
- * Builds a small responsive image from an existing Product Bus picture.
+ * Builds a small responsive picture from existing Product Bus media.
  *
- * Cloning the source `<picture>` for a 100–200px thumbnail carries its desktop
- * `width=2000` source and makes the browser download hero-sized media for the
- * rail. This preserves the source image's alt text but gives the browser only
- * 1x/2x candidates appropriate to the displayed thumbnail.
+ * This is intentionally a tiny adapter around the standard EDS helper rather
+ * than a second image-URL implementation. The caller supplies the CSS width;
+ * the helper emits the normal lazy WebP/fallback markup with 1x/2x candidates.
  *
  * @param {HTMLElement} picture
  * @param {number} width CSS pixel width for the 1x candidate.
- * @returns {HTMLImageElement}
+ * @returns {Element}
  */
 export function thumbnail(picture, width) {
   const source = picture.querySelector('img');
-  const raw = source?.currentSrc || source?.getAttribute('src') || '';
-  const makeUrl = (targetWidth) => {
-    const url = new URL(raw, window.location.href);
-    url.searchParams.set('width', String(targetWidth));
-    url.searchParams.set('format', 'webply');
-    url.searchParams.set('optimize', 'medium');
-    return url.href;
-  };
-
-  const image = document.createElement('img');
-  image.src = makeUrl(width);
-  image.srcset = `${makeUrl(width)} 1x, ${makeUrl(width * 2)} 2x`;
-  image.sizes = `${width}px`;
-  image.loading = 'lazy';
-  image.decoding = 'async';
-  image.alt = source?.getAttribute('alt') || '';
-  return image;
+  return createOptimizedPicture(
+    source?.currentSrc || source?.getAttribute('src') || '',
+    source?.getAttribute('alt') || '',
+    false,
+    [
+      { media: '(min-resolution: 2dppx)', width: String(width * 2) },
+      { width: String(width) },
+    ],
+  );
 }
 
 /**
