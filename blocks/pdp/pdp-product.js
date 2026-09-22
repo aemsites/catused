@@ -58,11 +58,6 @@ function photoType(picture) {
  */
 function drawerPhoto(picture, video) {
   const clone = picture.cloneNode(true);
-  const img = clone.querySelector('img');
-  if (img) {
-    img.setAttribute('loading', 'lazy');
-    img.removeAttribute('fetchpriority');
-  }
   if (!video) return clone;
 
   const link = document.createElement('button');
@@ -193,10 +188,9 @@ function buildVideoDialog(title) {
 /**
  * Builds the gallery from the pictures the pipeline already rendered.
  *
- * The hero `<picture>` is **moved**, never cloned. `scripts.js` has already
- * flipped it to eager/high priority and preloaded it, so the request is in
- * flight by the time this runs; cloning would orphan that request and register
- * the LCP element against a node created later.
+ * The hero `<picture>` is **moved**, never cloned. That preserves the first
+ * pipeline image node for EDS's normal section/LCP handling instead of creating
+ * a late duplicate that the browser treats as a separate image.
  *
  * @param {HTMLElement[]} pictures
  * @param {string} title
@@ -220,26 +214,16 @@ export function buildGallery(pictures, title, videoByPicture, certification) {
   pictures.forEach((picture, i) => {
     const slide = add('div', 'pdp-gallery-slide', track);
     if (i === 0) {
-      // Moved, never cloned: scripts.js has already flipped this one to eager
-      // and preloaded it, so the request is in flight. Cloning would orphan it
-      // and register the LCP element against a node created later.
+      // Moved, never cloned: preserve the pipeline's first image node so EDS
+      // can apply its normal first-image LCP handling.
       const img = picture.querySelector('img');
-      if (img) {
-        img.setAttribute('loading', 'eager');
-        img.setAttribute('fetchpriority', 'high');
-        if (!img.getAttribute('alt')) img.setAttribute('alt', title);
-      }
+      if (img && !img.getAttribute('alt')) img.setAttribute('alt', title);
       slide.append(picture);
       const video = videoByPicture.get(picture);
       if (video) addVideoButton(slide, video, 'pdp-video-link pdp-video-link-overlay');
       return;
     }
     const clone = picture.cloneNode(true);
-    const img = clone.querySelector('img');
-    if (img) {
-      img.setAttribute('loading', 'lazy');
-      img.removeAttribute('fetchpriority');
-    }
     slide.append(clone);
     const video = videoByPicture.get(picture);
     if (video) addVideoButton(slide, video, 'pdp-video-link pdp-video-link-overlay');
@@ -280,11 +264,6 @@ export function buildGallery(pictures, title, videoByPicture, certification) {
     }
 
     const clone = picture.cloneNode(true);
-    const img = clone.querySelector('img');
-    if (img) {
-      img.setAttribute('loading', 'lazy');
-      img.removeAttribute('fetchpriority');
-    }
     thumb.append(clone);
     if (video) {
       const play = add('span', 'pdp-thumb-play', thumb);
