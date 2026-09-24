@@ -1,11 +1,14 @@
 import { getMetadata } from '../../scripts/aem.js';
 import { loadFragment } from '../fragment/fragment.js';
+import {
+  LOCALES, localeLabel, readLocale, writeLocale,
+} from '../../scripts/locale.js';
 
 // media query match that indicates mobile/tablet width
 const isDesktop = window.matchMedia('(min-width: 900px)');
 
 const TOOL_LABELS = {
-  globe: 'Language',
+  globe: 'Region and currency',
   person: 'Account',
   grid: 'Apps',
 };
@@ -26,9 +29,26 @@ function closeWaffle(nav) {
   if (button) button.setAttribute('aria-expanded', 'false');
 }
 
+/**
+ * Closes the region and currency menu.
+ * @param {Element} nav
+ */
+function closeLocale(nav) {
+  const menu = nav.querySelector('.nav-locale');
+  const button = nav.querySelector('.nav-locale-button');
+  if (menu) menu.hidden = true;
+  if (button) button.setAttribute('aria-expanded', 'false');
+}
+
 function closeOnEscape(e) {
   if (e.code === 'Escape') {
     const nav = document.getElementById('nav');
+    const locale = nav.querySelector('.nav-locale');
+    if (locale && !locale.hidden) {
+      closeLocale(nav);
+      nav.querySelector('.nav-locale-button')?.focus();
+      return;
+    }
     const waffle = nav.querySelector('.nav-waffle');
     if (waffle && !waffle.hidden) {
       closeWaffle(nav);
@@ -53,6 +73,7 @@ function closeOnEscape(e) {
 function closeOnFocusLost(e) {
   const nav = e.currentTarget;
   if (!nav.contains(e.relatedTarget)) {
+    closeLocale(nav);
     closeWaffle(nav);
     const navSections = nav.querySelector('.nav-sections');
     if (!navSections) return;
@@ -107,7 +128,10 @@ function toggleMenu(nav, navSections, forceExpanded = null) {
   nav.setAttribute('aria-expanded', expanded ? 'false' : 'true');
   toggleAllNavSections(navSections, expanded || isDesktop.matches ? 'false' : 'true');
   button.setAttribute('aria-label', expanded ? 'Open navigation' : 'Close navigation');
-  if (expanded && !isDesktop.matches) closeWaffle(nav);
+  if (expanded && !isDesktop.matches) {
+    closeLocale(nav);
+    closeWaffle(nav);
+  }
   // enable nav dropdown keyboard accessibility
   if (navSections) {
     const navDrops = navSections.querySelectorAll('.nav-drop');
@@ -319,7 +343,62 @@ function decorateWaffle(nav, icon) {
     }
     if (!menu) return;
     const open = menu.hidden;
-    if (open) toggleAllNavSections(nav.querySelector('.nav-sections'), false);
+    if (open) {
+      closeLocale(nav);
+      toggleAllNavSections(nav.querySelector('.nav-sections'), false);
+    }
+    menu.hidden = !open;
+    button.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+  return button;
+}
+
+/**
+ * Turns the globe icon into a region and currency picker.
+ * @param {Element} nav
+ * @param {Element} icon
+ * @returns {HTMLButtonElement}
+ */
+function decorateLocale(nav, icon) {
+  const current = readLocale();
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'nav-locale-button';
+  button.setAttribute('aria-haspopup', 'true');
+  button.setAttribute('aria-expanded', 'false');
+  button.setAttribute('aria-controls', 'nav-locale');
+  button.setAttribute('aria-label', `Region and currency, ${localeLabel(current)}`);
+  replaceIconHost(icon, button);
+
+  const menu = document.createElement('div');
+  menu.className = 'nav-locale';
+  menu.id = 'nav-locale';
+  menu.hidden = true;
+  const list = document.createElement('ul');
+  LOCALES.forEach((locale) => {
+    const item = document.createElement('li');
+    const choice = document.createElement('button');
+    choice.type = 'button';
+    choice.textContent = localeLabel(locale);
+    const selected = locale.currency === current.currency && locale.region === current.region;
+    if (selected) choice.setAttribute('aria-current', 'true');
+    choice.addEventListener('click', () => {
+      if (!selected) {
+        writeLocale(locale);
+        window.location.reload();
+        return;
+      }
+      closeLocale(nav);
+    });
+    item.append(choice);
+    list.append(item);
+  });
+  menu.append(list);
+  button.after(menu);
+
+  button.addEventListener('click', () => {
+    const open = menu.hidden;
+    if (open) closeWaffle(nav);
     menu.hidden = !open;
     button.setAttribute('aria-expanded', open ? 'true' : 'false');
   });
@@ -340,6 +419,7 @@ function decorateTools(nav, navTools) {
     let host;
     if (iconName === 'person') host = linkAccount(icon);
     else if (iconName === 'grid') host = decorateWaffle(nav, icon);
+    else if (iconName === 'globe') host = decorateLocale(nav, icon);
     else host = icon.closest('a') || icon.closest('p') || icon;
     if (!host.getAttribute('aria-label')) host.setAttribute('aria-label', label);
     if (host.tagName === 'P' && !host.querySelector('a, button')) host.setAttribute('role', 'img');
@@ -384,11 +464,14 @@ export default async function decorate(block) {
   decorateTools(nav, navTools);
 
   document.addEventListener('pointerdown', (e) => {
-    const menu = nav.querySelector('.nav-waffle');
+    const waffle = nav.querySelector('.nav-waffle');
     const waffleButton = nav.querySelector('.nav-waffle-button');
-    if (!menu || menu.hidden) return;
-    if (menu.contains(e.target) || waffleButton?.contains(e.target)) return;
-    closeWaffle(nav);
+    const waffleHit = waffleButton?.contains(e.target) || waffle?.contains(e.target);
+    if (waffle && !waffle.hidden && !waffleHit) closeWaffle(nav);
+    const locale = nav.querySelector('.nav-locale');
+    const localeButton = nav.querySelector('.nav-locale-button');
+    const localeHit = localeButton?.contains(e.target) || locale?.contains(e.target);
+    if (locale && !locale.hidden && !localeHit) closeLocale(nav);
   });
 
   // hamburger for mobile
@@ -403,6 +486,7 @@ export default async function decorate(block) {
   // prevent mobile nav behavior on window resize
   toggleMenu(nav, navSections, isDesktop.matches);
   isDesktop.addEventListener('change', () => {
+    closeLocale(nav);
     closeWaffle(nav);
     toggleMenu(nav, navSections, isDesktop.matches);
   });

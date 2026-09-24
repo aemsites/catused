@@ -407,32 +407,44 @@ header nav .nav-tools .icon {
   width: 19px;
 }
 
-header nav .nav-tools .nav-waffle:not([hidden]) {
+header nav .nav-tools :is(.nav-waffle, .nav-locale):not([hidden]) {
   flex: 1 0 100%;
   margin: 4px 0 0;
   padding: 0;
   background-color: var(--color-bg);
 }
 
-header nav .nav-tools .nav-waffle ul {
+header nav .nav-tools :is(.nav-waffle, .nav-locale) ul {
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-header nav .nav-tools .nav-waffle a {
+header nav .nav-tools :is(.nav-waffle, .nav-locale) :is(a, button) {
   display: flex;
   align-items: center;
-  width: auto;
+  box-sizing: border-box;
+  width: 100%;
   height: auto;
+  margin: 0;
   padding: 14px 0;
+  border: 0;
   border-bottom: 1px solid var(--color-border);
   border-radius: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
   font-size: 17px;
   font-weight: 600;
+  text-align: left;
+  cursor: pointer;
 }
 
-header nav .nav-tools .nav-waffle a:hover {
+header nav .nav-tools .nav-locale button[aria-current='true'] {
+  background-color: var(--color-bg-light);
+}
+
+header nav .nav-tools :is(.nav-waffle, .nav-locale) :is(a, button):hover {
   background-color: transparent;
 }
 
@@ -455,12 +467,13 @@ header nav .nav-tools .nav-waffle a:hover {
     height: 24px;
   }
 
-  header nav .nav-tools .nav-waffle:not([hidden]) {
+  header nav .nav-tools :is(.nav-waffle, .nav-locale):not([hidden]) {
     position: absolute;
     top: calc(100% + 10px);
     right: 0;
     z-index: 60;
     flex: none;
+    width: max-content;
     min-width: 260px;
     margin: 0;
     padding: 8px 0;
@@ -469,14 +482,14 @@ header nav .nav-tools .nav-waffle a:hover {
     box-shadow: var(--shadow-default);
   }
 
-  header nav .nav-tools .nav-waffle a {
+  header nav .nav-tools :is(.nav-waffle, .nav-locale) :is(a, button) {
     padding: 10px 16px;
     border-bottom: 0;
     font-size: var(--text-s);
     white-space: nowrap;
   }
 
-  header nav .nav-tools .nav-waffle a:hover {
+  header nav .nav-tools :is(.nav-waffle, .nav-locale) :is(a, button):hover {
     background-color: var(--color-bg-light);
   }
 }

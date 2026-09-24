@@ -1,5 +1,6 @@
+import { formatListingPrice } from '../../scripts/locale.js';
 import {
-  add, icon, money, NUM,
+  add, icon, NUM,
 } from './pdp-utils.js';
 /** Inspection categories shown before the "View All" reveal. */
 const REPORT_PREVIEW = 5;
@@ -424,7 +425,7 @@ export function buildCondition(custom, title, pictures = []) {
  * @param {HTMLElement[]} pictures
  * @returns {HTMLElement}
  */
-export function buildSimilar(title, pictures, currency) {
+export function buildSimilar(title, pictures, currency, rates) {
   const photos = pictures ?? [];
   const section = document.createElement('section');
   section.className = 'pdp-similar';
@@ -473,7 +474,7 @@ export function buildSimilar(title, pictures, currency) {
 
     const price = add('div', 'pdp-listing-price', body);
     add('span', 'pdp-spec-label', price, 'Base price');
-    add('span', 'pdp-listing-amount', price, money(currency).format(79500));
+    add('span', 'pdp-listing-amount', price, formatListingPrice(79500, currency, rates));
 
     const details = add('button', 'pdp-btn pdp-btn-primary pdp-btn-sm', body, 'Details');
     details.type = 'button';
@@ -487,15 +488,13 @@ export function buildSimilar(title, pictures, currency) {
  * @param {object} offer
  * @returns {HTMLElement}
  */
-export function buildStickyBar(offer) {
+export function buildStickyBar(offer, rates) {
   const bar = document.createElement('div');
   bar.className = 'pdp-sticky';
 
   const price = Number(offer.price);
-  const currency = offer.priceCurrency;
-  const formatted = Number.isFinite(price) ? money(currency).format(price) : '';
   const label = Number.isFinite(price)
-    ? `${formatted}${currency && !formatted.includes(currency) ? ` ${currency}` : ''}`
+    ? formatListingPrice(price, offer.priceCurrency, rates)
     : 'Call for price';
   const column = add('div', 'pdp-sticky-price', bar);
   const amount = add('span', 'pdp-sticky-amount', column, label);

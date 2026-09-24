@@ -10,7 +10,6 @@ import {
   YEAR_STEP,
   formatCountry,
   formatNumber,
-  formatPrice,
   formatYear,
   loadCurrencyRates,
   loadCategories,
@@ -24,6 +23,7 @@ import {
 import attachRangeFilter from '../../scripts/range-filter.js';
 import { highlightTerms } from '../../scripts/suggestions.js';
 import { setOdometerLabel } from '../../scripts/odometer.js';
+import { formatListingPrice } from '../../scripts/locale.js';
 
 const PAGE_SIZE = 50;
 
@@ -213,7 +213,7 @@ function renderCard(item, copy, rates, terms = []) {
   const priceVal = document.createElement('div');
   priceVal.className = 'v';
   const usd = priceUsd(item, rates);
-  priceVal.textContent = Number.isNaN(usd) ? '' : formatPrice(usd);
+  priceVal.textContent = Number.isNaN(usd) ? '' : formatListingPrice(usd, 'USD', rates);
   priceBlock.append(priceKey, priceVal);
   body.append(priceBlock);
 
@@ -345,8 +345,8 @@ export default async function decorate(widget) {
       add('hours', `${min} – ${max}`, () => hoursControl?.setRange({}));
     }
     if (state.priceMin != null || state.priceMax != null) {
-      const min = formatPrice(state.priceMin || 0);
-      const max = state.priceMax != null ? formatPrice(state.priceMax) : `${copy.any || 'Any'}`;
+      const min = formatListingPrice(state.priceMin || 0, 'USD', rates);
+      const max = state.priceMax != null ? formatListingPrice(state.priceMax, 'USD', rates) : `${copy.any || 'Any'}`;
       add('price', `${min} – ${max}`, () => priceControl?.setRange({}));
     }
     chips.forEach((chip) => {
@@ -491,7 +491,7 @@ export default async function decorate(widget) {
       cap: PRICE_CAP_USD,
       initial: { min: initial.priceMin, max: initial.priceMax },
       getValue: (item) => item.price,
-      formatValue: formatPrice,
+      formatValue: (value) => formatListingPrice(value, 'USD', rates),
       onChange: () => {
         priceRange = priceControl.getRange();
         applyFilters();

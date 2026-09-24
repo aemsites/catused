@@ -1,5 +1,6 @@
+import { formatListingPrice } from '../../scripts/locale.js';
 import {
-  add, icon, money, NUM,
+  add, icon, NUM,
 } from './pdp-utils.js';
 
 /**
@@ -400,7 +401,7 @@ function addGroupTitle(parent, rest) {
  * MOCK: protection plans are not in the Product Bus feed.
  * @param {Element} parent
  */
-function addProtections(parent, formatter) {
+function addProtections(parent, sourceCurrency, rates) {
   const group = add('section', 'pdp-group', parent);
   addGroupTitle(group, 'Additional Protections');
 
@@ -416,7 +417,7 @@ function addProtections(parent, formatter) {
       selected: false,
     },
   ].forEach((plan) => addOption(group, {
-    ...plan, price: formatter.format(5000), link: 'Learn More', group: 'protection',
+    ...plan, price: formatListingPrice(5000, sourceCurrency, rates), link: 'Learn More', group: 'protection',
   }));
 }
 
@@ -449,7 +450,7 @@ function addAttachments(parent) {
  * @param {string} title
  * @returns {HTMLElement}
  */
-export function buildPurchaseCard(custom, offer, title) {
+export function buildPurchaseCard(custom, offer, title, rates) {
   const card = document.createElement('aside');
   card.className = 'pdp-purchase';
 
@@ -462,16 +463,15 @@ export function buildPurchaseCard(custom, offer, title) {
   save.append(icon('heart'));
 
   const price = Number(offer.price);
-  const formatter = money(offer.priceCurrency);
   const priceRow = add('div', 'pdp-price', card);
   add('span', 'pdp-price-label', priceRow, 'Base Price:');
-  add('span', 'pdp-price-value', priceRow, Number.isFinite(price) ? formatter.format(price) : 'Call for price');
+  add('span', 'pdp-price-value', priceRow, Number.isFinite(price) ? formatListingPrice(price, offer.priceCurrency, rates) : 'Call for price');
 
   addSpecStrip(card, custom, offer);
   addDealer(card, custom);
 
   const body = add('div', 'pdp-purchase-body', card);
-  addProtections(body, formatter);
+  addProtections(body, offer.priceCurrency, rates);
   addAttachments(body);
 
   const actions = add('div', 'pdp-actions', card);

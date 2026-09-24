@@ -1,3 +1,4 @@
+import { loadCurrencyRates } from '../../scripts/product-index.js';
 import {
   add, icon, readProduct, readTitle,
 } from './pdp-utils.js';
@@ -292,8 +293,9 @@ function buildHeader(eyebrow, title) {
 /**
  * @param {HTMLElement} block
  */
-export default function decorate(block) {
+export default async function decorate(block) {
   const { custom, offer } = readProduct();
+  const rates = await loadCurrencyRates();
   const { eyebrow, title } = readTitle(custom);
 
   // The pipeline emits one <p><picture> per image, then the rendered
@@ -323,7 +325,7 @@ export default function decorate(block) {
   const hero = add('div', 'pdp-main', block);
   hero.append(
     buildGallery(pictures, name, videoByPicture, custom.condition?.certification),
-    buildPurchaseCard(custom, offer, name),
+    buildPurchaseCard(custom, offer, name, rates),
   );
 
   block.append(buildStats());
@@ -335,8 +337,8 @@ export default function decorate(block) {
   block.append(
     ...[
       condition,
-      buildSimilar(name, photoPictures, offer.priceCurrency),
-      buildStickyBar(offer),
+      buildSimilar(name, photoPictures, offer.priceCurrency, rates),
+      buildStickyBar(offer, rates),
     ].filter(Boolean),
   );
 
