@@ -315,9 +315,45 @@ main > .section.plp-container > div {
   margin-top: 14px;
 }
 
+.plp .results-lead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
 .plp .results-row .count {
   font-size: 16px;
   font-weight: 700;
+}
+
+.plp .save-search {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 16px;
+  border: 1px solid var(--color-gray-3);
+  border-radius: var(--radius-s);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-s);
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.plp .save-search:hover { border-color: var(--color-black); }
+
+.plp .save-search svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 2;
+  stroke-linejoin: round;
 }
 
 .plp .sortby {
@@ -653,6 +689,11 @@ main > .section.plp-container > div {
   }
 
   .plp .results-row {
+    display: flex;
+  }
+
+  .plp .results-row .sortby,
+  .plp .m-count {
     display: none;
   }
 

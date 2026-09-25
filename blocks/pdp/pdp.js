@@ -1,6 +1,8 @@
 import { loadCurrencyRates } from '../../scripts/product-index.js';
+import { formatListingPrice } from '../../scripts/locale.js';
+import { isLiked, removeLike, saveLike } from '../../scripts/likes.js';
 import {
-  add, icon, readProduct, readTitle,
+  add, icon, NUM, readProduct, readTitle,
 } from './pdp-utils.js';
 import { buildGallery, buildPurchaseCard } from './pdp-product.js';
 import {
@@ -108,16 +110,110 @@ function decorateOptions(block) {
 }
 
 /**
- * Toggles the save (heart) buttons.
- * @param {HTMLElement} block
+ * Sends a copy of the heart from the button to the account icon.
+ * @param {HTMLElement} from
  */
-function decorateSaveButtons(block) {
-  block.querySelectorAll('.pdp-save').forEach((button) => {
+function flyHeart(from) {
+  const target = document.querySelector('.nav-account-button');
+  const svg = from.querySelector('svg');
+  if (!target || !svg) return;
+  const start = from.getBoundingClientRect();
+  const end = target.getBoundingClientRect();
+  const flyer = document.createElement('span');
+  flyer.className = 'like-fly';
+  flyer.append(svg.cloneNode(true));
+  const x = start.left + (start.width / 2);
+  const y = start.top + (start.height / 2);
+  flyer.style.left = `${x}px`;
+  flyer.style.top = `${y}px`;
+  flyer.style.position = 'fixed';
+  flyer.style.zIndex = '2000';
+  document.documentElement.append(flyer);
+  const dx = (end.left + (end.width / 2)) - x;
+  const dy = (end.top + (end.height / 2)) - y;
+  const motion = flyer.animate([
+    { transform: 'translate(-50%, -50%) scale(1)', opacity: 1 },
+    { transform: `translate(calc(-50% + ${dx * 0.55}px), calc(-50% + ${dy * 0.35}px)) scale(1.15)`, opacity: 1, offset: 0.45 },
+    { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(0.45)`, opacity: 0.3 },
+  ], { duration: 1100, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' });
+  motion.onfinish = () => flyer.remove();
+}
+
+/**
+ * @param {HTMLElement} block
+ * @param {string} id
+ */
+function syncProductHearts(block, id) {
+  const pressed = String(isLiked(id));
+  block.querySelectorAll('.pdp-save:not(.pdp-save-sm)').forEach((button) => {
+    button.setAttribute('aria-pressed', pressed);
+  });
+}
+
+/**
+ * Year, hours, place and price, kept to one tight line under the title.
+ * @param {object} custom
+ * @param {object} offer
+ * @param {Object<string, number>} rates
+ * @returns {string}
+ */
+function likeDetail(custom, offer, rates) {
+  const hours = Number(custom.serviceMeter?.value);
+  const loc = custom.location ?? {};
+  const place = [loc.city, loc.state ?? loc.country].filter(Boolean).join(', ');
+  const price = Number(offer.price);
+  return [
+    custom.year,
+    Number.isFinite(hours) ? `${NUM.format(hours)} hrs` : '',
+    place,
+    Number.isFinite(price) ? formatListingPrice(price, offer.priceCurrency, rates) : '',
+  ].filter(Boolean).join(' · ');
+}
+
+/**
+ * Saves this machine from the product hearts. Similar-listing hearts stay local.
+ * @param {HTMLElement} block
+ * @param {object} custom
+ * @param {object} offer
+ * @param {string} title
+ * @param {string} image
+ * @param {Object<string, number>} rates
+ */
+function decorateSaveButtons(block, custom, offer, title, image, rates) {
+  const id = window.location.pathname;
+  block.querySelectorAll('.pdp-save-sm').forEach((button) => {
     button.addEventListener('click', () => {
       const pressed = button.getAttribute('aria-pressed') === 'true';
       button.setAttribute('aria-pressed', String(!pressed));
     });
   });
+
+  const toggle = (button) => {
+    if (isLiked(id)) {
+      removeLike(id);
+    } else {
+      saveLike({
+        id,
+        href: id,
+        title,
+        detail: likeDetail(custom, offer, rates),
+        image,
+        likedAt: Date.now(),
+      });
+      flyHeart(button);
+    }
+    syncProductHearts(block, id);
+  };
+
+  block.addEventListener('click', (event) => {
+    const button = event.target.closest('.pdp-save');
+    if (!button || button.classList.contains('pdp-save-sm') || !block.contains(button)) return;
+    toggle(button);
+  });
+  block.querySelector('.pdp-drawer')?.addEventListener('pdp:prepare', () => {
+    syncProductHearts(block, id);
+  });
+  syncProductHearts(block, id);
 }
 
 /**
@@ -344,7 +440,15 @@ export default async function decorate(block) {
 
   decorateGalleryInteractions(block);
   decorateOptions(block);
-  decorateSaveButtons(block);
+  const photo = photoPictures[0]?.querySelector('img');
+  decorateSaveButtons(
+    block,
+    custom,
+    offer,
+    name,
+    photo?.currentSrc || photo?.src || '',
+    rates,
+  );
   decorateDetailToggles(block);
   wireDialog(block, '.pdp-drawer', '.pdp-gallery-viewall', '.pdp-drawer-close');
   wireDialog(block, '.pdp-dialog', '.pdp-condition-link', '.pdp-dialog-close');

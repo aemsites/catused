@@ -115,6 +115,23 @@
 
 .pdp-save:hover { background: var(--color-gray-5); }
 
+.like-fly {
+  position: fixed;
+  z-index: 2000;
+  width: 22px;
+  height: 22px;
+  pointer-events: none;
+  overflow: visible;
+  color: var(--color-brand);
+}
+
+.like-fly svg {
+  display: block;
+  width: 22px;
+  height: 22px;
+  fill: currentcolor;
+}
+
 .pdp-save-sm {
   width: 28px;
   height: 28px;

@@ -493,3 +493,244 @@ header nav .nav-tools :is(.nav-waffle, .nav-locale) :is(a, button):hover {
     background-color: var(--color-bg-light);
   }
 }
+
+header nav .nav-tools .nav-account:not([hidden]) {
+  flex: 1 0 100%;
+  margin: 4px 0 0;
+  background-color: var(--color-bg);
+}
+
+header nav .nav-tools .nav-account-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px 0;
+}
+
+header nav .nav-tools .nav-account-head h2 {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+header nav .nav-tools .nav-account-all {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text);
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+:is(header nav .nav-tools .nav-account, .nav-saved-dialog) ul {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+}
+
+:is(header nav .nav-tools .nav-account, .nav-saved-dialog) li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 10px;
+}
+
+:is(header nav .nav-tools .nav-account, .nav-saved-dialog) li:hover {
+  background-color: var(--color-bg-light);
+}
+
+:is(header nav .nav-tools .nav-account, .nav-saved-dialog) .nav-account-item {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  height: auto;
+  padding: 0;
+}
+
+:is(header nav .nav-tools .nav-account, .nav-saved-dialog) .nav-account-item img {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+:is(header nav .nav-tools .nav-account, .nav-saved-dialog) .nav-account-thumbs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  width: 40px;
+  height: 40px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--color-white);
+}
+
+:is(header nav .nav-tools .nav-account, .nav-saved-dialog) .nav-account-item .nav-account-thumbs img {
+  width: 100%;
+  height: 40px;
+  border-radius: 0;
+}
+
+:is(header nav .nav-tools .nav-account, .nav-saved-dialog) .nav-account-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+:is(header nav .nav-tools .nav-account, .nav-saved-dialog) .nav-account-badge {
+  max-width: 100%;
+  padding: 1px 5px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--color-bg-light);
+  color: var(--color-text);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:is(header nav .nav-tools .nav-account, .nav-saved-dialog) .nav-account-count {
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+}
+
+:is(header nav .nav-tools .nav-account, .nav-saved-dialog) .nav-account-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+:is(header nav .nav-tools .nav-account, .nav-saved-dialog) :is(.nav-account-title, .nav-account-detail, time) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+:is(header nav .nav-tools .nav-account, .nav-saved-dialog) .nav-account-title {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+:is(header nav .nav-tools .nav-account, .nav-saved-dialog) :is(.nav-account-detail, time) {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--color-muted);
+}
+
+:is(header nav .nav-tools .nav-account, .nav-saved-dialog) .nav-account-remove {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+:is(header nav .nav-tools .nav-account, .nav-saved-dialog) .nav-account-empty,
+header nav .nav-tools .nav-account-signin {
+  margin: 0;
+  padding: 10px 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+header nav .nav-tools .nav-account-signin {
+  display: block;
+  border-top: 1px solid var(--color-border);
+}
+
+header nav .nav-account-button.is-liked-ping {
+  transform: scale(1.12);
+}
+
+@media (width >= 900px) {
+  header nav .nav-tools .nav-account:not([hidden]) {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    z-index: 60;
+    flex: none;
+    width: 320px;
+    margin: 0;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-m);
+    box-shadow: var(--shadow-default);
+    max-height: min(70vh, 560px);
+    overflow: auto;
+  }
+}
+
+html.nav-saved-open,
+html.nav-saved-open body {
+  overflow: hidden;
+}
+
+.nav-saved-dialog {
+  width: min(100vw - 32px, 640px);
+  max-height: 80vh;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-m);
+  background: var(--color-bg);
+  color: var(--color-text);
+  overflow: hidden;
+}
+
+.nav-saved-dialog::backdrop {
+  background: rgb(0 0 0 / 35%);
+}
+
+.nav-saved-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.nav-saved-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.nav-saved-close {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-muted);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.nav-saved-body {
+  max-height: calc(80vh - 61px);
+  overflow: auto;
+}

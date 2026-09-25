@@ -3,6 +3,9 @@ import { loadFragment } from '../fragment/fragment.js';
 import {
   LOCALES, localeLabel, readLocale, writeLocale,
 } from '../../scripts/locale.js';
+import {
+  formatLikedAt, readLikes, readSearches, removeLike, removeSearch, LIKES_EVENT,
+} from '../../scripts/likes.js';
 
 // media query match that indicates mobile/tablet width
 const isDesktop = window.matchMedia('(min-width: 900px)');
@@ -40,9 +43,27 @@ function closeLocale(nav) {
   if (button) button.setAttribute('aria-expanded', 'false');
 }
 
+/**
+ * Closes the saved-equipment menu.
+ * @param {Element} nav
+ */
+function closeAccount(nav) {
+  const menu = nav.querySelector('.nav-account');
+  const button = nav.querySelector('.nav-account-button');
+  if (menu) menu.hidden = true;
+  if (button) button.setAttribute('aria-expanded', 'false');
+}
+
 function closeOnEscape(e) {
   if (e.code === 'Escape') {
+    if (document.querySelector('.nav-saved-dialog[open]')) return;
     const nav = document.getElementById('nav');
+    const account = nav.querySelector('.nav-account');
+    if (account && !account.hidden) {
+      closeAccount(nav);
+      nav.querySelector('.nav-account-button')?.focus();
+      return;
+    }
     const locale = nav.querySelector('.nav-locale');
     if (locale && !locale.hidden) {
       closeLocale(nav);
@@ -73,6 +94,7 @@ function closeOnEscape(e) {
 function closeOnFocusLost(e) {
   const nav = e.currentTarget;
   if (!nav.contains(e.relatedTarget)) {
+    closeAccount(nav);
     closeLocale(nav);
     closeWaffle(nav);
     const navSections = nav.querySelector('.nav-sections');
@@ -129,6 +151,7 @@ function toggleMenu(nav, navSections, forceExpanded = null) {
   toggleAllNavSections(navSections, expanded || isDesktop.matches ? 'false' : 'true');
   button.setAttribute('aria-label', expanded ? 'Open navigation' : 'Close navigation');
   if (expanded && !isDesktop.matches) {
+    closeAccount(nav);
     closeLocale(nav);
     closeWaffle(nav);
   }
@@ -256,20 +279,261 @@ function replaceIconHost(icon, replacement) {
   return replacement;
 }
 
+let savedDialog;
+
 /**
- * Turns the account icon into a link to the sign-in site.
- * @param {Element} icon
- * @returns {HTMLAnchorElement}
+ * @param {HTMLElement} parent
+ * @param {object} entry
  */
-function linkAccount(icon) {
-  const existing = icon.closest('a');
-  if (existing) {
-    existing.href = ACCOUNT_URL;
-    return existing;
-  }
+function renderSavedSearch(parent, entry) {
+  const thumbs = document.createElement('span');
+  thumbs.className = 'nav-account-thumbs';
+  (entry.images || []).slice(0, 3).forEach((src) => {
+    const img = document.createElement('img');
+    img.src = src;
+    img.alt = '';
+    thumbs.append(img);
+  });
+  parent.append(thumbs);
+  const copy = document.createElement('span');
+  copy.className = 'nav-account-copy';
+  const badges = document.createElement('span');
+  badges.className = 'nav-account-badges';
+  const count = document.createElement('span');
+  count.className = 'nav-account-badge nav-account-count';
+  const total = Number(entry.count) || 0;
+  count.textContent = `${total.toLocaleString('en-US')} results`;
+  badges.append(count);
+  (entry.badges || []).forEach((label) => {
+    const badge = document.createElement('span');
+    badge.className = 'nav-account-badge';
+    badge.textContent = label;
+    badges.append(badge);
+  });
+  const when = document.createElement('time');
+  when.dateTime = new Date(entry.likedAt).toISOString();
+  when.textContent = formatLikedAt(entry.likedAt);
+  copy.append(badges, when);
+  parent.append(copy);
+}
+
+/**
+ * @param {object} entry
+ * @param {string} kind
+ * @returns {HTMLLIElement}
+ */
+function renderSavedEntry(entry, kind) {
+  const item = document.createElement('li');
   const link = document.createElement('a');
-  link.href = ACCOUNT_URL;
-  return replaceIconHost(icon, link);
+  link.className = 'nav-account-item';
+  link.href = entry.href || '#';
+  if (kind === 'search') {
+    renderSavedSearch(link, entry);
+  } else {
+    if (entry.image) {
+      const img = document.createElement('img');
+      img.src = entry.image;
+      img.alt = '';
+      link.append(img);
+    }
+    const copy = document.createElement('span');
+    copy.className = 'nav-account-copy';
+    const title = document.createElement('span');
+    title.className = 'nav-account-title';
+    title.textContent = entry.title || 'Saved equipment';
+    const detail = document.createElement('span');
+    detail.className = 'nav-account-detail';
+    detail.textContent = entry.detail || '';
+    const when = document.createElement('time');
+    when.dateTime = new Date(entry.likedAt).toISOString();
+    when.textContent = formatLikedAt(entry.likedAt);
+    copy.append(title, detail, when);
+    link.append(copy);
+  }
+  const remove = document.createElement('button');
+  remove.type = 'button';
+  remove.className = 'nav-account-remove';
+  const label = kind === 'search' ? 'saved search' : (entry.title || 'saved equipment');
+  remove.setAttribute('aria-label', `Remove ${label}`);
+  remove.textContent = '×';
+  remove.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (kind === 'search') removeSearch(entry.id);
+    else removeLike(entry.id);
+  });
+  item.append(link, remove);
+  return item;
+}
+
+/**
+ * @param {string} kind
+ * @returns {{ title: string, entries: Array<object> }}
+ */
+function savedCategory(kind) {
+  if (kind === 'search') return { title: 'Saved searches', entries: readSearches() };
+  return { title: 'Favorites', entries: readLikes() };
+}
+
+/**
+ * @param {HTMLDialogElement} dialog
+ */
+function fillSavedDialog(dialog) {
+  const kind = dialog.dataset.kind || 'like';
+  const { title, entries } = savedCategory(kind);
+  const heading = dialog.querySelector('.nav-saved-title');
+  const body = dialog.querySelector('.nav-saved-body');
+  if (heading) heading.textContent = title;
+  if (!body) return;
+  body.replaceChildren();
+  if (!entries.length) {
+    const empty = document.createElement('p');
+    empty.className = 'nav-account-empty';
+    empty.textContent = 'None yet.';
+    body.append(empty);
+    return;
+  }
+  const list = document.createElement('ul');
+  entries.forEach((entry) => list.append(renderSavedEntry(entry, kind)));
+  body.append(list);
+}
+
+/**
+ * @param {string} kind
+ */
+function openSavedDialog(kind) {
+  if (!savedDialog) {
+    const dialog = document.createElement('dialog');
+    dialog.className = 'nav-saved-dialog';
+    const head = document.createElement('div');
+    head.className = 'nav-saved-head';
+    const heading = document.createElement('h2');
+    heading.className = 'nav-saved-title';
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'nav-saved-close';
+    close.setAttribute('aria-label', 'Close');
+    close.textContent = '×';
+    close.addEventListener('click', () => dialog.close());
+    head.append(heading, close);
+    const body = document.createElement('div');
+    body.className = 'nav-saved-body';
+    dialog.append(head, body);
+    dialog.addEventListener('click', (event) => {
+      if (event.target === dialog) dialog.close();
+    });
+    dialog.addEventListener('close', () => {
+      document.documentElement.classList.remove('nav-saved-open');
+    });
+    document.body.append(dialog);
+    savedDialog = dialog;
+  }
+  savedDialog.dataset.kind = kind;
+  fillSavedDialog(savedDialog);
+  if (!savedDialog.open) {
+    savedDialog.showModal();
+    document.documentElement.classList.add('nav-saved-open');
+  }
+}
+
+/**
+ * @param {HTMLElement} parent
+ * @param {string} kind
+ * @param {number} [limit]
+ */
+function renderSavedGroup(parent, kind, limit) {
+  const { title, entries } = savedCategory(kind);
+  const shown = limit == null ? entries : entries.slice(0, limit);
+  const group = document.createElement('section');
+  group.className = 'nav-account-group';
+  const head = document.createElement('div');
+  head.className = 'nav-account-head';
+  const heading = document.createElement('h2');
+  heading.textContent = title;
+  head.append(heading);
+  if (entries.length) {
+    const all = document.createElement('button');
+    all.type = 'button';
+    all.className = 'nav-account-all';
+    all.textContent = 'Show all';
+    all.addEventListener('click', () => {
+      openSavedDialog(kind);
+      const nav = document.getElementById('nav');
+      if (nav) closeAccount(nav);
+    });
+    head.append(all);
+  }
+  group.append(head);
+  if (!shown.length) {
+    const empty = document.createElement('p');
+    empty.className = 'nav-account-empty';
+    empty.textContent = 'None yet.';
+    group.append(empty);
+  } else {
+    const list = document.createElement('ul');
+    shown.forEach((entry) => list.append(renderSavedEntry(entry, kind)));
+    group.append(list);
+  }
+  parent.append(group);
+}
+
+/**
+ * Fills the account menu with the three newest items in each category.
+ * @param {HTMLElement} menu
+ */
+function renderAccountMenu(menu) {
+  menu.replaceChildren();
+  renderSavedGroup(menu, 'search', 3);
+  renderSavedGroup(menu, 'like', 3);
+  const signIn = document.createElement('a');
+  signIn.className = 'nav-account-signin';
+  signIn.href = ACCOUNT_URL;
+  signIn.textContent = 'Sign in';
+  menu.append(signIn);
+}
+
+/**
+ * Turns the account icon into a menu of recently saved equipment.
+ * @param {Element} nav
+ * @param {Element} icon
+ * @returns {HTMLButtonElement}
+ */
+function decorateAccount(nav, icon) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'nav-account-button';
+  button.setAttribute('aria-haspopup', 'true');
+  button.setAttribute('aria-expanded', 'false');
+  button.setAttribute('aria-controls', 'nav-account');
+  button.setAttribute('aria-label', 'Account');
+  replaceIconHost(icon, button);
+
+  const menu = document.createElement('div');
+  menu.className = 'nav-account';
+  menu.id = 'nav-account';
+  menu.hidden = true;
+  renderAccountMenu(menu);
+  button.after(menu);
+
+  button.addEventListener('click', () => {
+    const open = menu.hidden;
+    if (open) {
+      renderAccountMenu(menu);
+      closeLocale(nav);
+      closeWaffle(nav);
+    }
+    menu.hidden = !open;
+    button.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+
+  window.addEventListener(LIKES_EVENT, (event) => {
+    renderAccountMenu(menu);
+    if (savedDialog?.open) fillSavedDialog(savedDialog);
+    if (!event.detail?.added) return;
+    button.classList.add('is-liked-ping');
+    window.setTimeout(() => button.classList.remove('is-liked-ping'), 450);
+  });
+  return button;
 }
 
 /**
@@ -344,6 +608,7 @@ function decorateWaffle(nav, icon) {
     if (!menu) return;
     const open = menu.hidden;
     if (open) {
+      closeAccount(nav);
       closeLocale(nav);
       toggleAllNavSections(nav.querySelector('.nav-sections'), false);
     }
@@ -398,7 +663,10 @@ function decorateLocale(nav, icon) {
 
   button.addEventListener('click', () => {
     const open = menu.hidden;
-    if (open) closeWaffle(nav);
+    if (open) {
+      closeAccount(nav);
+      closeWaffle(nav);
+    }
     menu.hidden = !open;
     button.setAttribute('aria-expanded', open ? 'true' : 'false');
   });
@@ -417,7 +685,7 @@ function decorateTools(nav, navTools) {
     const label = TOOL_LABELS[iconName] || iconName;
     if (!label) return;
     let host;
-    if (iconName === 'person') host = linkAccount(icon);
+    if (iconName === 'person') host = decorateAccount(nav, icon);
     else if (iconName === 'grid') host = decorateWaffle(nav, icon);
     else if (iconName === 'globe') host = decorateLocale(nav, icon);
     else host = icon.closest('a') || icon.closest('p') || icon;
@@ -472,6 +740,10 @@ export default async function decorate(block) {
     const localeButton = nav.querySelector('.nav-locale-button');
     const localeHit = localeButton?.contains(e.target) || locale?.contains(e.target);
     if (locale && !locale.hidden && !localeHit) closeLocale(nav);
+    const account = nav.querySelector('.nav-account');
+    const accountButton = nav.querySelector('.nav-account-button');
+    const accountHit = accountButton?.contains(e.target) || account?.contains(e.target);
+    if (account && !account.hidden && !accountHit) closeAccount(nav);
   });
 
   // hamburger for mobile
@@ -486,6 +758,7 @@ export default async function decorate(block) {
   // prevent mobile nav behavior on window resize
   toggleMenu(nav, navSections, isDesktop.matches);
   isDesktop.addEventListener('change', () => {
+    closeAccount(nav);
     closeLocale(nav);
     closeWaffle(nav);
     toggleMenu(nav, navSections, isDesktop.matches);

@@ -10,6 +10,7 @@ import {
   YEAR_STEP,
   formatCountry,
   formatNumber,
+  hasProductImage,
   formatYear,
   loadCurrencyRates,
   loadCategories,
@@ -24,6 +25,9 @@ import attachRangeFilter from '../../scripts/range-filter.js';
 import { highlightTerms } from '../../scripts/suggestions.js';
 import { setOdometerLabel } from '../../scripts/odometer.js';
 import { formatListingPrice } from '../../scripts/locale.js';
+import {
+  isLiked, removeLike, saveLike, saveSearch, LIKES_EVENT,
+} from '../../scripts/likes.js';
 
 const PAGE_SIZE = 50;
 
@@ -75,6 +79,85 @@ function productHref(url) {
   const value = String(url || '').trim();
   if (value.startsWith('/') || value.startsWith('http')) return value;
   return '#';
+}
+
+/**
+ * Same id the product page stores, so a card heart and a PDP heart are one like.
+ * @param {string} url
+ * @returns {string}
+ */
+function productId(url) {
+  const href = productHref(url);
+  if (href === '#') return '';
+  try {
+    const path = new URL(href, window.location.origin).pathname;
+    return path && path !== '/' ? path : '';
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * @param {Object} item
+ * @param {Object<string, number>} rates
+ * @returns {string}
+ */
+function cardLikeDetail(item, rates) {
+  const hours = Number(item.hours);
+  const usd = priceUsd(item, rates);
+  return [
+    item.year,
+    Number.isFinite(hours) ? `${formatNumber(hours)} hrs` : '',
+    formatCountry(item.country),
+    Number.isNaN(usd) ? '' : formatListingPrice(usd, 'USD', rates),
+  ].filter(Boolean).join(' · ');
+}
+
+/**
+ * Sends a copy of an icon from a button to the account icon.
+ * @param {HTMLElement} from
+ * @param {boolean} fill
+ */
+function flyToAccount(from, fill) {
+  const target = document.querySelector('.nav-account-button');
+  const svg = from.querySelector('svg');
+  if (!target || !svg) return;
+  const start = from.getBoundingClientRect();
+  const end = target.getBoundingClientRect();
+  const flyer = document.createElement('span');
+  const mark = svg.cloneNode(true);
+  mark.style.width = '22px';
+  mark.style.height = '22px';
+  mark.style.fill = fill ? 'currentcolor' : 'none';
+  mark.style.stroke = 'currentcolor';
+  mark.style.strokeWidth = '2';
+  flyer.append(mark);
+  const x = start.left + (start.width / 2);
+  const y = start.top + (start.height / 2);
+  flyer.style.left = `${x}px`;
+  flyer.style.top = `${y}px`;
+  flyer.style.position = 'fixed';
+  flyer.style.zIndex = '2000';
+  flyer.style.width = '22px';
+  flyer.style.height = '22px';
+  flyer.style.pointerEvents = 'none';
+  flyer.style.color = 'var(--color-brand)';
+  document.documentElement.append(flyer);
+  const dx = (end.left + (end.width / 2)) - x;
+  const dy = (end.top + (end.height / 2)) - y;
+  const motion = flyer.animate([
+    { transform: 'translate(-50%, -50%) scale(1)', opacity: 1 },
+    {
+      transform: `translate(calc(-50% + ${dx * 0.55}px), calc(-50% + ${dy * 0.35}px)) scale(1.15)`,
+      opacity: 1,
+      offset: 0.45,
+    },
+    {
+      transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(0.45)`,
+      opacity: 0.3,
+    },
+  ], { duration: 1100, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' });
+  motion.onfinish = () => flyer.remove();
 }
 
 /**
@@ -150,8 +233,12 @@ function renderCard(item, copy, rates, terms = []) {
   const save = document.createElement('button');
   save.type = 'button';
   save.className = 'save';
+  const likeId = productId(item.url);
+  const liked = likeId && isLiked(likeId);
   save.setAttribute('aria-label', copy.save || 'Save');
-  save.setAttribute('aria-pressed', 'false');
+  save.setAttribute('aria-pressed', liked ? 'true' : 'false');
+  if (likeId) save.dataset.likeId = likeId;
+  if (liked) save.classList.add('saved');
   const heart = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   heart.setAttribute('viewBox', '0 0 24 24');
   heart.setAttribute('aria-hidden', 'true');
@@ -159,9 +246,23 @@ function renderCard(item, copy, rates, terms = []) {
   path.setAttribute('d', 'M12 20.5S3.5 15.5 3.5 9.2C3.5 6.5 5.6 4.5 8.1 4.5c1.8 0 3.2 1.1 3.9 2.4.7-1.3 2.1-2.4 3.9-2.4 2.5 0 4.6 2 4.6 4.7 0 6.3-8.5 11.3-8.5 11.3z');
   heart.append(path);
   save.append(heart);
-  save.addEventListener('click', () => {
-    const on = save.classList.toggle('saved');
-    save.setAttribute('aria-pressed', on ? 'true' : 'false');
+  save.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!likeId) return;
+    if (isLiked(likeId)) {
+      removeLike(likeId);
+      return;
+    }
+    saveLike({
+      id: likeId,
+      href: likeId,
+      title: item.title || item.sku || 'Saved equipment',
+      detail: cardLikeDetail(item, rates),
+      image: hasProductImage(item) ? String(item.image).trim() : '',
+      likedAt: Date.now(),
+    });
+    flyToAccount(save, true);
   });
   catRow.append(cat, save);
   body.append(catRow);
@@ -320,6 +421,68 @@ export default async function decorate(widget) {
 
   let applyFilters = () => {};
   let catalog;
+  let latestItems = [];
+  let latestCount = 0;
+
+  const searchBadges = (state) => {
+    const badges = [];
+    const query = String(state.q || '').trim();
+    if (query) badges.push(query);
+    if (state.category) badges.push(state.category);
+    if (state.brand) badges.push(state.brand);
+    if (state.country) badges.push(formatCountry(state.country));
+    if (state.yearMin != null || state.yearMax != null) {
+      const min = state.yearMin != null ? formatYear(state.yearMin) : (copy.min || 'Min');
+      const max = state.yearMax != null ? formatYear(state.yearMax) : (copy.any || 'Any');
+      badges.push(`${min}–${max}`);
+    }
+    if (state.hoursMin != null || state.hoursMax != null) {
+      const min = state.hoursMin != null ? formatNumber(state.hoursMin) : '0';
+      const max = state.hoursMax != null ? formatNumber(state.hoursMax) : (copy.any || 'Any');
+      badges.push(`${min}–${max} hrs`);
+    }
+    if (state.priceMin != null || state.priceMax != null) {
+      const min = formatListingPrice(state.priceMin || 0, 'USD', rates);
+      const max = state.priceMax != null
+        ? formatListingPrice(state.priceMax, 'USD', rates)
+        : (copy.any || 'Any');
+      badges.push(`${min}–${max}`);
+    }
+    return badges;
+  };
+
+  window.addEventListener(LIKES_EVENT, () => {
+    grid.querySelectorAll('.save[data-like-id]').forEach((button) => {
+      const on = isLiked(button.dataset.likeId);
+      button.classList.toggle('saved', on);
+      button.setAttribute('aria-pressed', String(on));
+    });
+  });
+
+  widget.querySelector('.save-search')?.addEventListener('click', (event) => {
+    const button = event.currentTarget;
+    const state = currentState();
+    const images = latestItems
+      .filter((item) => hasProductImage(item))
+      .slice(0, 3)
+      .map((item) => String(item.image).trim());
+    const id = [
+      window.location.pathname,
+      state.q, state.category, state.brand, state.country,
+      state.hoursMin, state.hoursMax, state.priceMin, state.priceMax,
+      state.yearMin, state.yearMax,
+    ].join('|');
+    saveSearch({
+      id,
+      href: `${window.location.pathname}${window.location.search}`,
+      title: 'Saved search',
+      count: latestCount,
+      images,
+      badges: searchBadges(state),
+      likedAt: Date.now(),
+    });
+    flyToAccount(button, false);
+  });
 
   const paintChips = (state) => {
     if (!chipsEl) return;
@@ -560,8 +723,10 @@ export default async function decorate(widget) {
     const terms = String(state.q || '').trim().toLowerCase().split(/\s+/)
       .filter(Boolean);
     grid.replaceChildren();
-    (result.items || []).forEach((item) => grid.append(renderCard(item, copy, rates, terms)));
-    if (empty) empty.hidden = result.count > 0;
+    latestItems = result.items || [];
+    latestCount = result.count || 0;
+    latestItems.forEach((item) => grid.append(renderCard(item, copy, rates, terms)));
+    if (empty) empty.hidden = latestCount > 0;
     setCount(result.count || 0);
     paintPager(result.pages || 1);
   });

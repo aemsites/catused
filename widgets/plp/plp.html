@@ -128,7 +128,13 @@
         <button type="submit" class="go button accent" data-copy="search" data-copy-target="aria-label" aria-label="Search"></button>
       </div>
       <div class="results-row">
-        <span class="count" data-copy="results">0 results</span>
+        <div class="results-lead">
+          <span class="count" data-copy="results">0 results</span>
+          <button type="button" class="save-search">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-6-4.5L6 21Z"></path></svg>
+            <span>Save this search</span>
+          </button>
+        </div>
         <label class="sortby">
           <span data-copy="sortBy">Sort by</span>
           <select id="plp-sort" name="sort">
