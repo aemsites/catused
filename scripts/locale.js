@@ -95,8 +95,9 @@ export function convertAmount(amount, fromCurrency, toCurrency, rates) {
 }
 
 /**
- * Formats a price for display. USD keeps the source currency. Any other
- * preference converts the amount into that currency.
+ * Formats a price in the visitor's currency. The default is USD. Rates are
+ * units of each currency per 1 USD, so a CAD or AUD listing becomes USD (or
+ * whichever market is selected) before it is shown.
  * @param {number} amount
  * @param {string} [sourceCurrency]
  * @param {Object<string, number>} [rates]
@@ -106,9 +107,8 @@ export function formatListingPrice(amount, sourceCurrency = 'USD', rates = { USD
   const value = Number(amount);
   if (!Number.isFinite(value)) return '';
   const source = String(sourceCurrency || 'USD').toUpperCase();
-  const preferred = readLocale().currency;
-  if (preferred === 'USD') return formatMoney(value, source);
+  const preferred = readLocale().currency || 'USD';
   const converted = convertAmount(value, source, preferred, rates);
-  if (!Number.isFinite(converted)) return formatMoney(value, source);
+  if (!Number.isFinite(converted)) return formatMoney(value, preferred);
   return formatMoney(converted, preferred);
 }

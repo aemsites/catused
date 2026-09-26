@@ -1,0 +1,141 @@
+<dialog class="contact-dealer" aria-labelledby="contact-dealer-title">
+  <div class="head">
+    <h2 id="contact-dealer-title" data-copy="title">Contact Dealer</h2>
+    <button type="button" class="close" data-copy="close" data-copy-target="aria-label" aria-label="Close">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg>
+    </button>
+  </div>
+  <form class="body" method="post" action="">
+    <div class="summary">
+      <div class="product">
+        <div class="identity">
+          <h3 class="product-title"></h3>
+          <span class="badge" hidden>
+            <span class="badge-cat" data-copy="cat">CAT</span>
+            <span class="badge-text">
+              <span data-copy="certified">Certified</span>
+              <span data-copy="used">Used</span>
+            </span>
+          </span>
+        </div>
+        <p class="meta">
+          <span class="year" hidden></span>
+          <span class="hours" hidden><span class="hours-value"></span> <span data-copy="hours">Hours</span></span>
+        </p>
+        <img class="photo" alt="" hidden>
+      </div>
+      <div class="aside">
+        <div class="dealer" hidden>
+          <span class="logo">
+            <span class="logo-name"></span>
+            <span class="logo-cat" data-copy="cat">CAT</span>
+          </span>
+          <p class="dealer-name"></p>
+        </div>
+        <dl class="specs">
+          <div data-spec="brand">
+            <dt data-copy="brand">Brand</dt>
+            <dd></dd>
+          </div>
+          <div data-spec="category">
+            <dt data-copy="category">Category</dt>
+            <dd></dd>
+          </div>
+          <div data-spec="serial">
+            <dt data-copy="serialNumber">Serial Number</dt>
+            <dd></dd>
+          </div>
+          <div data-spec="unit">
+            <dt data-copy="unitNumber">Unit Number</dt>
+            <dd></dd>
+          </div>
+        </dl>
+      </div>
+    </div>
+
+    <input type="hidden" name="sku">
+    <input type="hidden" name="productTitle">
+    <input type="hidden" name="productUrl">
+    <input type="hidden" name="dealer">
+    <input type="hidden" name="brand">
+    <input type="hidden" name="category">
+    <input type="hidden" name="serialNumber">
+    <input type="hidden" name="unitNumber">
+    <input type="hidden" name="year">
+    <input type="hidden" name="hours">
+
+    <div class="grid">
+      <div class="field">
+        <label class="vh" for="contact-first-name" data-copy="firstName">First Name *</label>
+        <input id="contact-first-name" name="firstName" type="text" autocomplete="given-name" required data-copy="firstName" data-copy-target="placeholder" placeholder="First Name *">
+      </div>
+      <div class="field">
+        <label class="vh" for="contact-company" data-copy="company">Company *</label>
+        <input id="contact-company" name="company" type="text" autocomplete="organization" required data-copy="company" data-copy-target="placeholder" placeholder="Company *">
+      </div>
+      <div class="field">
+        <label class="vh" for="contact-last-name" data-copy="lastName">Last Name *</label>
+        <input id="contact-last-name" name="lastName" type="text" autocomplete="family-name" required data-copy="lastName" data-copy-target="placeholder" placeholder="Last Name *">
+      </div>
+      <div class="field">
+        <label class="vh" for="contact-country" data-copy="country">Select country *</label>
+        <select id="contact-country" name="country" autocomplete="country" required>
+          <option value="" data-copy="country">Select country *</option>
+        </select>
+      </div>
+      <div class="field">
+        <label class="vh" for="contact-email" data-copy="email">Email Address *</label>
+        <input id="contact-email" name="email" type="email" autocomplete="email" required data-copy="email" data-copy-target="placeholder" placeholder="Email Address *">
+      </div>
+      <div class="field">
+        <label class="vh" for="contact-phone" data-copy="phone">Business Phone</label>
+        <input id="contact-phone" name="phone" type="tel" autocomplete="tel" data-copy="phone" data-copy-target="placeholder" placeholder="Business Phone">
+      </div>
+    </div>
+
+    <div class="split">
+      <div class="field grow">
+        <label class="vh" for="contact-comments" data-copy="comments">Comments</label>
+        <textarea id="contact-comments" name="comments" rows="6" data-copy="comments" data-copy-target="placeholder" placeholder="Comments"></textarea>
+      </div>
+      <div class="stack">
+        <div class="field">
+          <label class="vh" for="contact-offer" data-copy="offer">Make an offer</label>
+          <input id="contact-offer" name="offer" type="text" data-copy="offer" data-copy-target="placeholder" placeholder="Make an offer">
+        </div>
+        <label class="check">
+          <input type="checkbox" name="trade">
+          <span data-copy="trade">I have equipment to trade</span>
+        </label>
+        <div class="field grow">
+          <label class="vh" for="contact-trade-details" data-copy="tradeDetails">Trade details</label>
+          <textarea id="contact-trade-details" name="tradeDetails" rows="4" data-copy="tradeDetails" data-copy-target="placeholder" placeholder="Trade details"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="interests">
+      <label class="check">
+        <input type="checkbox" name="warranty">
+        <span data-copy="warranty">Interested in warranty info</span>
+      </label>
+      <label class="check">
+        <input type="checkbox" name="financing">
+        <span data-copy="financing">Interested in financing</span>
+      </label>
+      <label class="check">
+        <input type="checkbox" name="cva">
+        <span data-copy="cva">Interested in Customer Value Agreements</span>
+      </label>
+    </div>
+
+    <p class="privacy">
+      <span data-copy="privacyBefore">By sharing your information you're giving Caterpillar permission to process your data to appropriately fulfill your request. Depending on your request, we may need to share your data with applicable dealers, within the Caterpillar group of companies, and applicable service providers operating on Caterpillar's behalf. Taking care of your information is a responsibility we take seriously. Our </span><a data-copy="privacyUrl" data-copy-target="href" href="https://www.caterpillar.com/en/legal-notices/data-privacy.html" target="_blank" rel="noopener noreferrer"><span data-copy="privacyLink">Global Data Privacy Statement</span></a><span data-copy="privacyAfter"> details our data privacy practices and your rights to control your personal data.</span>
+    </p>
+
+    <div class="actions">
+      <button type="button" class="cancel" data-copy="cancel">Cancel</button>
+      <button type="submit" class="button accent" data-copy="submit">Submit</button>
+    </div>
+  </form>
+</dialog>

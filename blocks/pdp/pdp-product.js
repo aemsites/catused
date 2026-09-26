@@ -320,6 +320,20 @@ function addSpecStrip(parent, custom, offer) {
 }
 
 /**
+ * Dealer sites share the contact email's domain.
+ * `sales@boydcat.com` becomes `https://www.boydcat.com`.
+ * @param {string} [email]
+ * @returns {string}
+ */
+function dealerWebsite(email) {
+  const domain = String(email ?? '').trim().match(/@([^@\s]+)$/)?.[1]
+    ?.toLowerCase()
+    .replace(/^www\./, '');
+  if (!domain || !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain)) return '';
+  return `https://www.${domain}`;
+}
+
+/**
  * Dealer card. On mobile this also carries the primary call to action.
  * @param {Element} parent
  * @param {object} custom
@@ -329,6 +343,7 @@ function addDealer(parent, custom) {
   const loc = custom.location ?? {};
   const place = [loc.city, loc.state ?? loc.country].filter(Boolean).join(', ');
   const phone = dealer.contact?.phone;
+  const website = dealerWebsite(dealer.contact?.email);
   const name = dealer.name ?? 'Cat Dealer';
 
   const card = add('div', 'pdp-dealer', parent);
@@ -341,107 +356,25 @@ function addDealer(parent, custom) {
 
   if (place) add('p', 'pdp-dealer-loc', card, place);
 
-  const links = add('p', 'pdp-dealer-links', card);
-  const site = add('a', 'pdp-link', links, 'Website');
-  site.href = '#website';
-  site.prepend(icon('external'));
+  if (website || phone) {
+    const links = add('p', 'pdp-dealer-links', card);
+    if (website) {
+      const site = add('a', 'pdp-link', links, 'Website');
+      site.href = website;
+      site.target = '_blank';
+      site.rel = 'noopener noreferrer';
+      site.prepend(icon('external'));
+    }
 
-  if (phone) {
-    const call = add('a', 'pdp-link', links, 'Call');
-    call.href = `tel:${phone.replace(/\s/g, '')}`;
-    call.prepend(icon('phone'));
+    if (phone) {
+      const call = add('a', 'pdp-link', links, 'Call');
+      call.href = `tel:${phone.replace(/\s/g, '')}`;
+      call.prepend(icon('phone'));
+    }
   }
 
-  const cta = add('button', 'pdp-btn pdp-btn-primary pdp-dealer-cta', card, 'Contact Dealer');
+  const cta = add('button', 'pdp-btn pdp-btn-primary pdp-dealer-cta pdp-contact', card, 'Contact Dealer');
   cta.type = 'button';
-}
-
-/**
- * One selectable protection plan or attachment.
- * @param {Element} parent
- * @param {{ name: string, copy: string, price: string, link: string,
- *   selected: boolean, thumb?: boolean, group: string }} config
- */
-function addOption(parent, config) {
-  const option = add('label', `pdp-option${config.thumb ? ' pdp-option-attachment' : ''}${config.selected ? ' is-selected' : ''}`, parent);
-
-  const input = add('input', 'pdp-option-input', option);
-  input.type = 'checkbox';
-  input.name = config.group;
-  input.checked = config.selected;
-
-  if (config.thumb) {
-    add('span', 'pdp-option-thumb', option).setAttribute('aria-hidden', 'true');
-  }
-
-  const body = add('div', 'pdp-option-body', option);
-  add('span', 'pdp-option-name', body, config.name);
-  add('p', 'pdp-option-copy', body, config.copy);
-  const more = add('a', 'pdp-link', body, config.link);
-  more.href = '#details';
-
-  const aside = add('div', 'pdp-option-aside', option);
-  const chip = add('span', 'pdp-chip', aside, 'Selected');
-  chip.prepend(icon('check'));
-  add('span', 'pdp-option-price', aside, config.price);
-}
-
-/**
- * Section heading where "Include " is desktop-only.
- * @param {Element} parent
- * @param {string} rest
- */
-function addGroupTitle(parent, rest) {
-  const title = add('h2', 'pdp-group-title', parent);
-  add('span', 'pdp-group-prefix', title, 'Include ');
-  title.append(rest);
-}
-
-/**
- * MOCK: protection plans are not in the Product Bus feed.
- * @param {Element} parent
- */
-function addProtections(parent, sourceCurrency, rates) {
-  const group = add('section', 'pdp-group', parent);
-  addGroupTitle(group, 'Additional Protections');
-
-  [
-    {
-      name: 'Customer Value Agreement',
-      copy: 'Add a CVA for scheduled maintenance and ongoing protection.',
-      selected: true,
-    },
-    {
-      name: 'Equipment Protection Plan',
-      copy: 'Add an EPP for extended coverage and budget protection.',
-      selected: false,
-    },
-  ].forEach((plan) => addOption(group, {
-    ...plan, price: formatListingPrice(5000, sourceCurrency, rates), link: 'Learn More', group: 'protection',
-  }));
-}
-
-/**
- * MOCK: compatible attachments are not in the Product Bus feed.
- * @param {Element} parent
- */
-function addAttachments(parent) {
-  const group = add('section', 'pdp-group', parent);
-  addGroupTitle(group, 'Compatible Attachments');
-
-  [0, 1, 2].forEach((i) => addOption(group, {
-    name: 'Backhoe Bucket',
-    copy: '610 mm (24 in), Pin On',
-    price: '$XXXX',
-    link: 'More Details',
-    selected: i === 2,
-    thumb: true,
-    group: 'attachment',
-  }));
-
-  const more = add('a', 'pdp-more', group, 'View more attachments');
-  more.href = '#attachments';
-  more.append(icon('arrow'));
 }
 
 /**
@@ -455,31 +388,26 @@ export function buildPurchaseCard(custom, offer, title, rates) {
   card.className = 'pdp-purchase';
 
   const head = add('div', 'pdp-purchase-head', card);
-  addCertifiedBadge(head, custom.condition?.certification, 'pdp-badge-inline');
-  const save = add('button', 'pdp-save', head);
+  const badge = addCertifiedBadge(head, custom.condition?.certification, 'pdp-badge-inline');
+  if (!badge) head.remove();
+
+  const price = Number(offer.price);
+  const priceRow = add('div', 'pdp-price', card);
+  const amount = add('div', 'pdp-price-amount', priceRow);
+  add('span', 'pdp-price-label', amount, 'Base Price:');
+  add('span', 'pdp-price-value', amount, Number.isFinite(price) ? formatListingPrice(price, offer.priceCurrency, rates) : 'Call for price');
+  const save = add('button', 'pdp-save', priceRow);
   save.type = 'button';
   save.setAttribute('aria-label', `Save ${title}`);
   save.setAttribute('aria-pressed', 'false');
   save.append(icon('heart'));
 
-  const price = Number(offer.price);
-  const priceRow = add('div', 'pdp-price', card);
-  add('span', 'pdp-price-label', priceRow, 'Base Price:');
-  add('span', 'pdp-price-value', priceRow, Number.isFinite(price) ? formatListingPrice(price, offer.priceCurrency, rates) : 'Call for price');
-
   addSpecStrip(card, custom, offer);
   addDealer(card, custom);
 
-  const body = add('div', 'pdp-purchase-body', card);
-  addProtections(body, offer.priceCurrency, rates);
-  addAttachments(body);
-
   const actions = add('div', 'pdp-actions', card);
-  const contact = add('button', 'pdp-btn pdp-btn-primary', actions, 'Contact Dealer');
+  const contact = add('button', 'pdp-btn pdp-btn-primary pdp-contact', actions, 'Contact Dealer');
   contact.type = 'button';
-  const saveAll = add('button', 'pdp-btn pdp-btn-secondary', actions, 'Save Selections');
-  saveAll.type = 'button';
-  saveAll.prepend(icon('bookmark'));
 
   return card;
 }

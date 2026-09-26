@@ -183,14 +183,98 @@ export function facetCounts(products, getValue) {
   ));
 }
 
+/** A ten-year gap is as far apart as two listings can be on year. */
+const SIMILAR_YEAR_SPAN = 10;
+/** Hours below this compare as if they were this many, so 1 vs 40 is still close. */
+const SIMILAR_HOURS_FLOOR = 500;
+/** Prices below this compare as if they were this many USD. */
+const SIMILAR_PRICE_FLOOR = 1000;
+
 /**
- * Sorts a product list. `relevance` keeps the incoming order.
+ * @param {number|string|null|undefined} value
+ * @returns {number|null}
+ */
+function knownAmount(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : null;
+}
+
+/**
+ * @param {number|string|null|undefined} amount
+ * @param {string} [currency]
+ * @param {Object<string, number>} [rates]
+ * @returns {number|null}
+ */
+function amountUsd(amount, currency, rates) {
+  const price = knownAmount(amount);
+  if (price == null) return null;
+  const code = String(currency || 'USD').toUpperCase();
+  const rate = Number(rates?.[code]);
+  const perUsd = !Number.isFinite(rate) || rate <= 0 ? 1 : rate;
+  return price / perUsd;
+}
+
+/**
+ * Absolute year gap, capped at 1. Missing candidate years are a full miss
+ * when the machine on the page has a year.
+ * @param {number|null} source
+ * @param {number|null} candidate
+ * @returns {number|null}
+ */
+function yearGap(source, candidate) {
+  if (source == null) return null;
+  if (candidate == null) return 1;
+  return Math.min(Math.abs(source - candidate) / SIMILAR_YEAR_SPAN, 1);
+}
+
+/**
+ * Relative gap, capped at 1. `floor` keeps tiny values from looking unrelated.
+ * @param {number|null} source
+ * @param {number|null} candidate
+ * @param {number} floor
+ * @returns {number|null}
+ */
+function relativeGap(source, candidate, floor) {
+  if (source == null) return null;
+  if (candidate == null) return 1;
+  const base = Math.max(source, candidate, floor);
+  return Math.min(Math.abs(source - candidate) / base, 1);
+}
+
+/**
+ * How far a listing sits from the machine on the page. 0 is identical on the
+ * axes the page actually has; 1 is as far as that axis can count. Year, hours,
+ * and price weigh equally. A missing axis on the page is ignored.
+ * @param {Object} item
+ * @param {Object} target
+ * @param {Object<string, number>} rates
+ * @returns {number}
+ */
+function similarDistance(item, target, rates) {
+  const price = priceUsd(item, rates);
+  const gaps = [
+    yearGap(knownAmount(target.year), knownAmount(item.year)),
+    relativeGap(knownAmount(target.hours), knownAmount(item.hours), SIMILAR_HOURS_FLOOR),
+    relativeGap(
+      amountUsd(target.price, target.currency, rates),
+      Number.isFinite(price) ? price : null,
+      SIMILAR_PRICE_FLOOR,
+    ),
+  ].filter((gap) => gap != null);
+  if (!gaps.length) return 0;
+  return gaps.reduce((sum, gap) => sum + gap, 0) / gaps.length;
+}
+
+/**
+ * Sorts a product list. `relevance` keeps the incoming order. `similar` ranks
+ * by proximity to `target` in year, hours, and USD price.
  * @param {Array<Object>} products
  * @param {string} sort
  * @param {Object<string, number>} rates
+ * @param {Object} [target]
  * @returns {Array<Object>}
  */
-export function sortProducts(products, sort, rates) {
+export function sortProducts(products, sort, rates, target = null) {
   const copy = [...products];
   if (sort === 'price-asc') {
     copy.sort((a, b) => (priceUsd(a, rates) || 0) - (priceUsd(b, rates) || 0));
@@ -200,6 +284,8 @@ export function sortProducts(products, sort, rates) {
     copy.sort((a, b) => (Number(b.year) || 0) - (Number(a.year) || 0));
   } else if (sort === 'hours-asc') {
     copy.sort((a, b) => (Number(a.hours) || 0) - (Number(b.hours) || 0));
+  } else if (sort === 'similar' && target) {
+    copy.sort((a, b) => similarDistance(a, target, rates) - similarDistance(b, target, rates));
   }
   return copy;
 }
@@ -394,7 +480,12 @@ export function queryProducts(products, spec = {}) {
     }
   }
 
-  const sorted = needItems ? sortProducts(matches, spec.sort, rates) : matches;
+  let pool = matches;
+  if (spec.sort === 'similar' && spec.similar) {
+    const sku = String(spec.similar.sku || '');
+    pool = matches.filter((item) => String(item.sku) !== sku && hasProductImage(item));
+  }
+  const sorted = needItems ? sortProducts(pool, spec.sort, rates, spec.similar) : matches;
   const pages = Math.max(1, Math.ceil(count / Math.max(pageSize, 1)));
   let page = Math.max(1, spec.page || 1);
   if (page > pages) page = pages;

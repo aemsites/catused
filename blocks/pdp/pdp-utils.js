@@ -48,7 +48,6 @@ const ICONS = {
   check: [['path', { d: 'm5 13 4 4L19 7' }]],
   external: [['path', { d: 'M14 4h6v6M20 4l-8 8M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5' }]],
   phone: [['path', { d: 'M6 3h3l2 5-2.5 1.5a11 11 0 0 0 5 5L15 12l5 2v3a2 2 0 0 1-2.2 2A16 16 0 0 1 4 5.2 2 2 0 0 1 6 3Z' }]],
-  bookmark: [['path', { d: 'M6 3h12v18l-6-4.5L6 21Z' }]],
   info: [
     ['circle', { cx: '12', cy: '12', r: '9' }],
     ['path', { d: 'M12 11v5M12 8h.01' }],

@@ -1,4 +1,4 @@
-import { loadCurrencyRates } from '../../scripts/product-index.js';
+import { loadCurrencyRates, watchCatalog } from '../../scripts/product-index.js';
 import { formatListingPrice } from '../../scripts/locale.js';
 import { isLiked, removeLike, saveLike } from '../../scripts/likes.js';
 import {
@@ -6,7 +6,7 @@ import {
 } from './pdp-utils.js';
 import { buildGallery, buildPurchaseCard } from './pdp-product.js';
 import {
-  buildStats, buildSpecifications, buildDetails, buildCondition, buildSimilar, buildStickyBar,
+  buildSpecifications, buildCondition, buildSimilar, buildStickyBar,
 } from './pdp-sections.js';
 
 /**
@@ -93,20 +93,6 @@ function decorateGalleryInteractions(block) {
     }
     touch = undefined;
   }, { passive: true });
-}
-
-/**
- * Reflects checkbox state on protection and attachment options.
- * @param {HTMLElement} block
- */
-function decorateOptions(block) {
-  block.querySelectorAll('.pdp-option').forEach((option) => {
-    const input = option.querySelector('.pdp-option-input');
-    if (!input) return;
-    input.addEventListener('change', () => {
-      option.classList.toggle('is-selected', input.checked);
-    });
-  });
 }
 
 /**
@@ -339,21 +325,6 @@ function wireDialog(block, dialogSelector, openerSelector, closeSelector) {
 }
 
 /**
- * Expands the truncated detail lists.
- * @param {HTMLElement} block
- */
-function decorateDetailToggles(block) {
-  block.querySelectorAll('.pdp-detail-more').forEach((button) => {
-    button.addEventListener('click', () => {
-      const panel = button.closest('.pdp-detail-panel');
-      panel?.querySelectorAll('.pdp-detail-item.is-hidden')
-        .forEach((item) => item.classList.remove('is-hidden'));
-      button.remove();
-    });
-  });
-}
-
-/**
  * Builds the page header: back link, family eyebrow, title and save button.
  *
  * Deliberately a `<div>`, not a `<header>`: `styles.css` sets a bare
@@ -387,8 +358,83 @@ function buildHeader(eyebrow, title) {
 }
 
 /**
- * @param {HTMLElement} block
+ * Product summary for the contact dialog, taken from the listing on this page.
+ * @param {object} custom
+ * @param {string} title
+ * @param {string} image
+ * @returns {object}
  */
+function contactListing(custom, title, image) {
+  const hours = Number(custom.serviceMeter?.value);
+  const brand = (custom.manufacturer?.name ?? '').toUpperCase();
+  const model = custom.model ?? '';
+  const product = [brand, model].filter(Boolean).join(' ') || title;
+  return {
+    title: product,
+    year: custom.year ? String(custom.year) : '',
+    hours: Number.isFinite(hours) ? NUM.format(hours) : '',
+    image,
+    certified: custom.condition?.certification?.code === 'CCU',
+    dealer: custom.dealer?.name ?? '',
+    brand: product,
+    category: custom.equipmentFamily?.name ?? '',
+    serial: custom.serialNumber ?? '',
+    unit: custom.unitNumber ?? '',
+    sku: custom.catusedId ? String(custom.catusedId) : '',
+  };
+}
+
+/**
+ * Fills the similar-listings row with the closest other machines in this
+ * category. Closeness is year, hours, and price, weighed equally.
+ * @param {{ show: (items: object[]) => void }} similar
+ * @param {object} custom
+ * @param {object} offer
+ * @param {string} category
+ * @param {Object<string, number>} rates
+ */
+function decorateSimilar(similar, custom, offer, category, rates) {
+  const family = String(category || '').trim();
+  if (!family) return;
+  const catalog = watchCatalog({
+    category: family,
+    pageSize: 4,
+    rates,
+    sort: 'similar',
+    similar: {
+      sku: custom.catusedId ? String(custom.catusedId) : '',
+      year: custom.year,
+      hours: custom.serviceMeter?.value,
+      price: offer?.price,
+      currency: offer?.priceCurrency,
+    },
+  }, (result) => {
+    if (!result.complete) return;
+    similar.show(result.items || []);
+    catalog.stop();
+  });
+}
+
+/**
+ * Opens the contact-dealer dialog from the purchase-card buttons.
+ * @param {HTMLElement} block
+ * @param {object} custom
+ * @param {string} title
+ */
+function decorateContactDealer(block, custom, title) {
+  block.querySelectorAll('.pdp-contact').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const image = block.querySelector('.pdp-gallery img');
+      const { openContactDealer } = await import('../../widgets/contact-dealer/contact-dealer.js');
+      await openContactDealer(contactListing(
+        custom,
+        title,
+        image?.currentSrc || image?.src || '',
+      ));
+    });
+  });
+}
+
 export default async function decorate(block) {
   const { custom, offer } = readProduct();
   const rates = await loadCurrencyRates();
@@ -424,22 +470,24 @@ export default async function decorate(block) {
     buildPurchaseCard(custom, offer, name, rates),
   );
 
-  block.append(buildStats());
-
-  const info = add('div', 'pdp-info', block);
-  info.append(buildSpecifications(), buildDetails());
+  const specs = buildSpecifications(custom.features);
+  if (specs) {
+    const info = add('div', 'pdp-info', block);
+    info.append(specs);
+  }
 
   const condition = buildCondition(custom, name, photoPictures);
+  const similar = buildSimilar(rates);
   block.append(
     ...[
       condition,
-      buildSimilar(name, photoPictures, offer.priceCurrency, rates),
+      similar.section,
       buildStickyBar(offer, rates),
     ].filter(Boolean),
   );
+  decorateSimilar(similar, custom, offer, eyebrow, rates);
 
   decorateGalleryInteractions(block);
-  decorateOptions(block);
   const photo = photoPictures[0]?.querySelector('img');
   decorateSaveButtons(
     block,
@@ -449,9 +497,9 @@ export default async function decorate(block) {
     photo?.currentSrc || photo?.src || '',
     rates,
   );
-  decorateDetailToggles(block);
   wireDialog(block, '.pdp-drawer', '.pdp-gallery-viewall', '.pdp-drawer-close');
   wireDialog(block, '.pdp-dialog', '.pdp-condition-link', '.pdp-dialog-close');
   decorateStickyBar(block);
   decorateVideoPlayer(block);
+  decorateContactDealer(block, custom, name);
 }

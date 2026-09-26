@@ -1,4 +1,5 @@
 import { formatListingPrice } from '../../scripts/locale.js';
+import { addCertifiedBadge } from './pdp-product.js';
 import {
   add, icon, NUM,
 } from './pdp-utils.js';
@@ -9,101 +10,71 @@ const REPORT_PREVIEW = 5;
 const GRADE_ICON = { ok: 'check', warn: 'info', bad: 'warn' };
 
 /**
- * MOCK: headline stats are not in the Product Bus feed.
- * @returns {HTMLElement}
+ * The feed joins a name and value with either " - " or ":". One listing uses
+ * one of those. Whichever shows up in more entries is the separator for the
+ * whole list; a tie stays with " - ".
+ * @param {string[]} features
+ * @returns {string}
  */
-export function buildStats() {
-  const section = document.createElement('section');
-  section.className = 'pdp-stats';
-
-  [
-    ['XXX un', 'Gross power'],
-    ['XXX un', 'Rated Operating Capacities - 35% tipping load'],
-    ['XXX un', 'Operating weight'],
-  ].forEach(([value, label]) => {
-    const stat = add('div', 'pdp-stat', section);
-    add('span', 'pdp-stat-value', stat, value);
-    add('span', 'pdp-stat-label', stat, label);
+function featureSeparator(features) {
+  let dashes = 0;
+  let colons = 0;
+  features.forEach((feature) => {
+    const dashAt = feature.indexOf(' - ');
+    const colonAt = feature.indexOf(':');
+    if (dashAt === -1 && colonAt === -1) return;
+    if (colonAt === -1 || (dashAt !== -1 && dashAt < colonAt)) dashes += 1;
+    else colons += 1;
   });
-
-  return section;
+  return colons > dashes ? ':' : ' - ';
 }
 
 /**
- * Equipment specifications accordion.
- *
- * MOCK: group contents. The feed carries no structured specifications, so the
- * groups render a placeholder until it does.
- *
- * @returns {HTMLElement}
+ * Splits one feature on the first occurrence of `separator`.
+ * "Emissions Level - EPA - Tier4" keeps "EPA - Tier4" as the value.
+ * @param {string} feature
+ * @param {string} separator
+ * @returns {[string, string]}
  */
-export function buildSpecifications() {
+function splitFeature(feature, separator) {
+  const splitAt = feature.indexOf(separator);
+  if (splitAt === -1) return [feature, ''];
+  return [
+    feature.slice(0, splitAt).trim(),
+    feature.slice(splitAt + separator.length).trim(),
+  ];
+}
+
+/**
+ * Equipment specifications from the feed's `features` list.
+ *
+ * Entries are either a bare name ("Air Conditioner") or a name and value
+ * joined by " - " or ":".
+ *
+ * @param {string[]} [features]
+ * @returns {HTMLElement|null}
+ */
+export function buildSpecifications(features) {
+  const entries = (Array.isArray(features) ? features : [])
+    .map((feature) => String(feature ?? '').trim())
+    .filter(Boolean);
+  const separator = featureSeparator(entries);
+  const rows = entries
+    .map((feature) => splitFeature(feature, separator))
+    .filter(([name]) => name);
+
+  if (!rows.length) return null;
+
   const section = document.createElement('section');
   section.className = 'pdp-card pdp-specs-card';
-  add('h2', 'pdp-card-title', section, 'Equipment Specifications');
+  add('h2', 'pdp-card-title', section, 'Features');
 
-  const accordion = add('div', 'pdp-accordion', section);
-  [
-    'Engine', 'Operating Specifications', 'Weights', 'Dimensions', 'Cab',
-    'Service Refill Capacities', 'Hydraulic System', 'Power Train', 'Noise Level',
-    'Air Conditioning System',
-  ].forEach((name) => {
-    const item = add('details', 'pdp-accordion-item', accordion);
-    const summary = add('summary', 'pdp-accordion-summary', item);
-    add('span', null, summary, name);
-    summary.append(icon('chevron', 'pdp-accordion-icon'));
-
-    const body = add('div', 'pdp-accordion-body', item);
-    add('p', 'pdp-muted', body, 'Specification data coming soon.');
+  const list = add('div', 'pdp-features', section);
+  rows.forEach(([name, value]) => {
+    const row = add('div', 'pdp-feature', list);
+    add('span', 'pdp-feature-name', row, name);
+    if (value) add('span', 'pdp-feature-value', row, value);
   });
-
-  // The feed does not carry a complete structured specification sheet, so there
-  // is no "All Specs" destination to promise yet. Keep the in-context accordions
-  // visible as an explicit coming-soon surface, but do not render a dead CTA.
-  return section;
-}
-
-/**
- * One details panel with a "show more" toggle.
- * @param {Element} parent
- * @param {string} title
- * @param {string[]} items
- */
-function addDetailPanel(parent, title, items) {
-  const VISIBLE = 5;
-  const panel = add('div', 'pdp-detail-panel', parent);
-  add('h3', 'pdp-detail-title', panel, title);
-
-  items.forEach((text, i) => {
-    const missing = text === 'Missing from Export';
-    add('p', `pdp-detail-item${missing ? ' pdp-detail-missing' : ''}${i >= VISIBLE ? ' is-hidden' : ''}`, panel, text);
-  });
-
-  const hidden = Math.max(items.length - VISIBLE, 0);
-  if (!hidden) return;
-
-  const more = add('button', 'pdp-link pdp-detail-more', panel, `Show ${hidden} more`);
-  more.type = 'button';
-  more.prepend(icon('chevron', 'pdp-rot'));
-}
-
-/**
- * Details panels.
- *
- * The export currently has neither fitted accessories/compatibility nor an
- * additional-information payload. Keep the missing-source marker visible in
- * both panels during product review instead of relabelling dealer feature text
- * as accessories or showing fabricated Detail Item placeholders.
- *
- * @returns {HTMLElement}
- */
-export function buildDetails() {
-  const section = document.createElement('section');
-  section.className = 'pdp-card pdp-details-card';
-  add('h2', 'pdp-card-title', section, 'Details');
-
-  addDetailPanel(section, 'Accessories', ['Missing from Export']);
-  addDetailPanel(section, 'Additional Information', ['Missing from Export']);
 
   return section;
 }
@@ -418,69 +389,83 @@ export function buildCondition(custom, title, pictures = []) {
 }
 
 /**
- * MOCK: similar listings are not in the feed; the product index would supply
- * these. Reuses this product's own photography so the row reads realistically.
- *
- * @param {string} title
- * @param {HTMLElement[]} pictures
- * @returns {HTMLElement}
+ * One similar-listing card from a product-index row.
+ * @param {Element} grid
+ * @param {object} item
+ * @param {Object<string, number>} rates
  */
-export function buildSimilar(title, pictures, currency, rates) {
-  const photos = pictures ?? [];
+function addSimilarCard(grid, item, rates) {
+  const href = item.url || '#';
+  const title = item.title || item.sku || '';
+  const place = [item.city, item.state].filter(Boolean).join(', ');
+  const certification = item.certification === 'CCU' ? { code: 'CCU' } : undefined;
+  const listing = add('article', 'pdp-listing', grid);
+
+  const media = add('div', 'pdp-listing-media', listing);
+  if (item.image) {
+    const photo = add('a', null, media);
+    photo.href = href;
+    photo.tabIndex = -1;
+    photo.setAttribute('aria-hidden', 'true');
+    const img = add('img', null, photo);
+    img.src = String(item.image).trim();
+    img.alt = '';
+    img.loading = 'lazy';
+  }
+  if (item.year) add('span', 'pdp-listing-year', media, String(item.year));
+  addCertifiedBadge(media, certification, 'pdp-badge-sm');
+
+  const body = add('div', 'pdp-listing-body', listing);
+  const head = add('div', 'pdp-listing-head', body);
+  if (item.product_type) add('span', 'pdp-listing-family', head, item.product_type);
+  const save = add('button', 'pdp-save pdp-save-sm', head);
+  save.type = 'button';
+  save.setAttribute('aria-label', `Save ${title}`);
+  save.setAttribute('aria-pressed', 'false');
+  save.append(icon('heart'));
+
+  const heading = add('h3', 'pdp-listing-title', body);
+  const name = add('a', null, heading, title);
+  name.href = href;
+
+  const hours = Number(item.hours);
+  const meta = add('p', 'pdp-listing-meta', body);
+  if (place) add('span', null, meta, place);
+  if (Number.isFinite(hours)) add('span', 'pdp-pill', meta, `${NUM.format(hours)} hours`);
+  if (!meta.childElementCount) meta.remove();
+
+  const price = add('div', 'pdp-listing-price', body);
+  add('span', 'pdp-spec-label', price, 'Base price');
+  const amount = Number(item.price);
+  add('span', 'pdp-listing-amount', price, Number.isFinite(amount)
+    ? formatListingPrice(amount, item.currency, rates)
+    : 'Call for price');
+
+  const details = add('a', 'pdp-btn pdp-btn-primary pdp-btn-sm', body, 'Details');
+  details.href = href;
+}
+
+/**
+ * Empty similar-listings row. Cards are filled once the product index returns
+ * other machines in this category.
+ * @param {Object<string, number>} rates
+ * @returns {{ section: HTMLElement, show: (items: object[]) => void }}
+ */
+export function buildSimilar(rates) {
   const section = document.createElement('section');
   section.className = 'pdp-similar';
+  section.hidden = true;
   add('h2', 'pdp-section-title', section, 'Similar Listings');
-
   const grid = add('div', 'pdp-listing-grid', section);
 
-  [0, 1, 2, 3].forEach((index) => {
-    const listing = add('article', 'pdp-listing', grid);
-
-    const media = add('div', 'pdp-listing-media', listing);
-    const source = photos[index % Math.max(photos.length, 1)];
-    if (source) {
-      const clone = source.cloneNode(true);
-      const img = clone.querySelector('img');
-      if (img) {
-        img.setAttribute('loading', 'lazy');
-        img.removeAttribute('fetchpriority');
-      }
-      media.append(clone);
-    }
-    add('span', 'pdp-listing-year', media, '2015');
-    // Similar listings are still mocked; do not fabricate a certification badge.
-
-    const body = add('div', 'pdp-listing-body', listing);
-    const head = add('div', 'pdp-listing-head', body);
-    add('span', 'pdp-listing-family', head, 'Compact Track Loader');
-    const save = add('button', 'pdp-save pdp-save-sm', head);
-    save.type = 'button';
-    save.setAttribute('aria-label', 'Save listing');
-    save.setAttribute('aria-pressed', 'false');
-    save.append(icon('heart'));
-
-    add('h3', 'pdp-listing-title', body, title);
-
-    const meta = add('p', 'pdp-listing-meta', body);
-    add('span', null, meta, 'Houston, TX');
-    add('span', 'pdp-pill', meta, '2,500 hours');
-
-    const specs = add('div', 'pdp-listing-specs', body);
-    [['ROPS', 'Cab'], ['Hydraulic Flow', 'Standard Flow']].forEach(([label, value]) => {
-      const spec = add('div', null, specs);
-      add('span', 'pdp-spec-label', spec, label);
-      add('span', 'pdp-spec-value', spec, value);
-    });
-
-    const price = add('div', 'pdp-listing-price', body);
-    add('span', 'pdp-spec-label', price, 'Base price');
-    add('span', 'pdp-listing-amount', price, formatListingPrice(79500, currency, rates));
-
-    const details = add('button', 'pdp-btn pdp-btn-primary pdp-btn-sm', body, 'Details');
-    details.type = 'button';
-  });
-
-  return section;
+  return {
+    section,
+    show(items) {
+      grid.replaceChildren();
+      items.forEach((item) => addSimilarCard(grid, item, rates));
+      section.hidden = items.length === 0;
+    },
+  };
 }
 
 /**
@@ -508,9 +493,6 @@ export function buildStickyBar(offer, rates) {
   const actions = add('div', 'pdp-sticky-actions', bar);
   const summary = add('button', 'pdp-btn pdp-btn-primary', actions, 'Continue to Summary');
   summary.type = 'button';
-  const save = add('button', 'pdp-btn pdp-btn-secondary', actions, 'Save Selection');
-  save.type = 'button';
-  save.prepend(icon('bookmark'));
 
   return bar;
 }
