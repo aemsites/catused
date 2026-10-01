@@ -183,86 +183,88 @@ export function facetCounts(products, getValue) {
   ));
 }
 
-/** A ten-year gap is as far apart as two listings can be on year. */
-const SIMILAR_YEAR_SPAN = 10;
-/** Hours below this compare as if they were this many, so 1 vs 40 is still close. */
-const SIMILAR_HOURS_FLOOR = 500;
-/** Prices below this compare as if they were this many USD. */
-const SIMILAR_PRICE_FLOOR = 1000;
-
 /**
- * @param {number|string|null|undefined} value
- * @returns {number|null}
+ * Whole-token match. Hyphens separate tokens, so `326` matches `326-07`
+ * and does not match `326FL` or `3264`.
+ * @param {string} needle
+ * @returns {RegExp|null}
  */
-function knownAmount(value) {
-  const number = Number(value);
-  return Number.isFinite(number) && number >= 0 ? number : null;
+function boundedToken(needle) {
+  const text = String(needle || '').trim();
+  if (!text) return null;
+  const escaped = text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?:^|[^a-z0-9])${escaped}(?:[^a-z0-9]|$)`, 'i');
 }
 
 /**
- * @param {number|string|null|undefined} amount
- * @param {string} [currency]
- * @param {Object<string, number>} [rates]
- * @returns {number|null}
+ * Model from JSON-LD (`326-07`) plus the series number in front of the hyphen (`326`).
+ * @param {string} model
+ * @returns {{ exact: string, compact: string, family: string,
+ *   exactPattern: RegExp|null, familyPattern: RegExp|null }}
  */
-function amountUsd(amount, currency, rates) {
-  const price = knownAmount(amount);
-  if (price == null) return null;
-  const code = String(currency || 'USD').toUpperCase();
-  const rate = Number(rates?.[code]);
-  const perUsd = !Number.isFinite(rate) || rate <= 0 ? 1 : rate;
-  return price / perUsd;
+function modelParts(model) {
+  const exact = String(model || '').trim().toLowerCase();
+  const head = exact.split('-')[0];
+  const family = (head.match(/^\d+/) || [head])[0];
+  return {
+    exact,
+    compact: exact.replace(/-/g, ''),
+    family,
+    exactPattern: boundedToken(exact),
+    familyPattern: family && family !== exact ? boundedToken(family) : null,
+  };
 }
 
 /**
- * Absolute year gap, capped at 1. Missing candidate years are a full miss
- * when the machine on the page has a year.
- * @param {number|null} source
- * @param {number|null} candidate
- * @returns {number|null}
- */
-function yearGap(source, candidate) {
-  if (source == null) return null;
-  if (candidate == null) return 1;
-  return Math.min(Math.abs(source - candidate) / SIMILAR_YEAR_SPAN, 1);
-}
-
-/**
- * Relative gap, capped at 1. `floor` keeps tiny values from looking unrelated.
- * @param {number|null} source
- * @param {number|null} candidate
- * @param {number} floor
- * @returns {number|null}
- */
-function relativeGap(source, candidate, floor) {
-  if (source == null) return null;
-  if (candidate == null) return 1;
-  const base = Math.max(source, candidate, floor);
-  return Math.min(Math.abs(source - candidate) / base, 1);
-}
-
-/**
- * How far a listing sits from the machine on the page. 0 is identical on the
- * axes the page actually has; 1 is as far as that axis can count. Year, hours,
- * and price weigh equally. A missing axis on the page is ignored.
- * @param {Object} item
- * @param {Object} target
- * @param {Object<string, number>} rates
+ * 0 is the same model in the title (`326-07` or `32607`), 1 is the series
+ * number (`326`), 2 is no model match.
+ * @param {string} title
+ * @param {ReturnType<typeof modelParts>} parts
  * @returns {number}
  */
-function similarDistance(item, target, rates) {
-  const price = priceUsd(item, rates);
-  const gaps = [
-    yearGap(knownAmount(target.year), knownAmount(item.year)),
-    relativeGap(knownAmount(target.hours), knownAmount(item.hours), SIMILAR_HOURS_FLOOR),
-    relativeGap(
-      amountUsd(target.price, target.currency, rates),
-      Number.isFinite(price) ? price : null,
-      SIMILAR_PRICE_FLOOR,
-    ),
-  ].filter((gap) => gap != null);
-  if (!gaps.length) return 0;
-  return gaps.reduce((sum, gap) => sum + gap, 0) / gaps.length;
+function modelMatchRank(title, parts) {
+  if (!parts.exact) return 2;
+  const text = String(title || '');
+  if (parts.exactPattern?.test(text)) return 0;
+  if (parts.compact && parts.compact !== parts.exact) {
+    const sameDigits = text.toLowerCase().split(/[^a-z0-9]+/).includes(parts.compact);
+    if (sameDigits) return 0;
+  }
+  if (parts.familyPattern?.test(text)) return 1;
+  return 2;
+}
+
+/**
+ * 0 is the same country. A page with no country does not prefer one.
+ * @param {Object} item
+ * @param {string} country
+ * @returns {number}
+ */
+function countryRank(item, country) {
+  const want = String(country || '').trim().toLowerCase();
+  if (!want) return 0;
+  return String(item.country || '').trim().toLowerCase() === want ? 0 : 1;
+}
+
+/**
+ * How close a listing is to the machine on the page. Lower is closer.
+ * Same model and same country, then the series number in the title in that
+ * country, then the same model elsewhere, then the series elsewhere.
+ * Hours, price, and year are not used.
+ * @param {Object} item
+ * @param {Object} target
+ * @param {ReturnType<typeof modelParts>} parts
+ * @returns {number}
+ */
+function similarRank(item, target, parts) {
+  const model = modelMatchRank(item.title, parts);
+  const country = countryRank(item, target.country);
+  if (model === 0 && country === 0) return 0;
+  if (model === 1 && country === 0) return 1;
+  if (model === 0) return 2;
+  if (model === 1) return 3;
+  if (country === 0) return 4;
+  return 5;
 }
 
 /**
@@ -283,8 +285,8 @@ function titleMatchIndex(item, terms) {
 
 /**
  * Sorts a product list. `relevance` ranks a query by how early it appears in
- * the title, and otherwise keeps the incoming order. `similar` ranks by
- * proximity to `target` in year, hours, and USD price.
+ * the title, and otherwise keeps the incoming order. `similar` ranks by the
+ * model number in the title and the same country as `target`.
  * @param {Array<Object>} products
  * @param {string} sort
  * @param {Object<string, number>} rates
@@ -303,7 +305,8 @@ export function sortProducts(products, sort, rates, target = null, terms = []) {
   } else if (sort === 'hours-asc') {
     copy.sort((a, b) => (Number(a.hours) || 0) - (Number(b.hours) || 0));
   } else if (sort === 'similar' && target) {
-    copy.sort((a, b) => similarDistance(a, target, rates) - similarDistance(b, target, rates));
+    const parts = modelParts(target.model);
+    copy.sort((a, b) => similarRank(a, target, parts) - similarRank(b, target, parts));
   } else if (terms.length) {
     copy.sort((a, b) => titleMatchIndex(a, terms) - titleMatchIndex(b, terms));
   }

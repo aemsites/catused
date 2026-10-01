@@ -385,15 +385,15 @@ function contactListing(custom, title, image) {
 }
 
 /**
- * Fills the similar-listings row with the closest other machines in this
- * category. Closeness is year, hours, and price, weighed equally.
+ * Fills the similar-listings row with other machines in this category.
+ * Closest is the same model in the same country, then the series number
+ * from that model (for `326-07`, a `326` in the title) in the same country.
  * @param {{ show: (items: object[]) => void }} similar
  * @param {object} custom
- * @param {object} offer
  * @param {string} category
  * @param {Object<string, number>} rates
  */
-function decorateSimilar(similar, custom, offer, category, rates) {
+function decorateSimilar(similar, custom, category, rates) {
   const family = String(category || '').trim();
   if (!family) return;
   const catalog = watchCatalog({
@@ -403,10 +403,8 @@ function decorateSimilar(similar, custom, offer, category, rates) {
     sort: 'similar',
     similar: {
       sku: custom.catusedId ? String(custom.catusedId) : '',
-      year: custom.year,
-      hours: custom.serviceMeter?.value,
-      price: offer?.price,
-      currency: offer?.priceCurrency,
+      model: custom.model ?? '',
+      country: custom.location?.country ?? '',
     },
   }, (result) => {
     if (!result.complete) return;
@@ -485,7 +483,7 @@ export default async function decorate(block) {
       buildStickyBar(offer, rates),
     ].filter(Boolean),
   );
-  decorateSimilar(similar, custom, offer, eyebrow, rates);
+  decorateSimilar(similar, custom, eyebrow, rates);
 
   decorateGalleryInteractions(block);
   const photo = photoPictures[0]?.querySelector('img');
