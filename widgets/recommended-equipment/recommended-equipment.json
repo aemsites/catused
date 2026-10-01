@@ -1,0 +1,10 @@
+{
+  "en": {
+    "details": "Details",
+    "save": "Save",
+    "basePrice": "Base price",
+    "hoursLabel": "{count} hours",
+    "callForPrice": "Call for price",
+    "empty": "No recommended equipment right now."
+  }
+}

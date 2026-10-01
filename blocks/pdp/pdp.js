@@ -1,6 +1,7 @@
 import { loadCurrencyRates, watchCatalog } from '../../scripts/product-index.js';
 import { formatListingPrice } from '../../scripts/locale.js';
 import { isLiked, removeLike, saveLike } from '../../scripts/likes.js';
+import { saveViewed } from '../../scripts/viewed.js';
 import {
   add, icon, NUM, readProduct, readTitle,
 } from './pdp-utils.js';
@@ -137,6 +138,21 @@ function syncProductHearts(block, id) {
 }
 
 /**
+ * Fields the similar-listings ranker needs, stored with the like and the visit
+ * so a later page can search without opening this PDP again.
+ * @param {object} custom
+ * @returns {{ sku: string, model: string, country: string, category: string }}
+ */
+function productSeed(custom) {
+  return {
+    sku: custom.catusedId ? String(custom.catusedId) : '',
+    model: custom.model || '',
+    country: custom.location?.country || '',
+    category: custom.equipmentFamily?.name || '',
+  };
+}
+
+/**
  * Year, hours, place and price, kept to one tight line under the title.
  * @param {object} custom
  * @param {object} offer
@@ -185,6 +201,7 @@ function decorateSaveButtons(block, custom, offer, title, image, rates) {
         detail: likeDetail(custom, offer, rates),
         image,
         likedAt: Date.now(),
+        ...productSeed(custom),
       });
       flyHeart(button);
     }
@@ -435,8 +452,23 @@ function decorateContactDealer(block, custom, title) {
 
 export default async function decorate(block) {
   const { custom, offer } = readProduct();
-  const rates = await loadCurrencyRates();
   const { eyebrow, title } = readTitle(custom);
+  const pageId = window.location.pathname;
+  const headingText = block.querySelector('h1')?.textContent?.trim() ?? '';
+  const name = title || headingText;
+  const seed = productSeed(custom);
+  // Record the visit before the first await so a widget later on the page
+  // already sees this machine as one of the two most recent PDPs.
+  if (pageId && pageId !== '/' && (seed.sku || seed.model || seed.category)) {
+    saveViewed({
+      id: pageId,
+      href: pageId,
+      title: name,
+      ...seed,
+      viewedAt: Date.now(),
+    });
+  }
+  const rates = await loadCurrencyRates();
 
   // The pipeline emits one <p><picture> per image, then the rendered
   // `description` as a list. Capture both before the block is rebuilt; the first
@@ -456,8 +488,6 @@ export default async function decorate(block) {
     });
   });
   const photoPictures = pictures.filter((picture) => !videoByPicture.has(picture));
-  const headingText = block.querySelector('h1')?.textContent?.trim() ?? '';
-  const name = title || headingText;
   block.textContent = '';
 
   block.append(buildHeader(eyebrow, name));

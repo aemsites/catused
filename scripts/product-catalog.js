@@ -44,6 +44,50 @@ export function priceUsd(item, rates) {
 }
 
 /**
+ * Pathname of a catalog url or page path, without a trailing slash.
+ * @param {string} value
+ * @returns {string}
+ */
+export function productPath(value) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  try {
+    const path = new URL(text, 'https://catalog.local').pathname;
+    return path.length > 1 ? path.replace(/\/$/, '') : path;
+  } catch {
+    return text.replace(/\/$/, '');
+  }
+}
+
+/**
+ * @param {Object} filters
+ * @returns {Set<string>|null}
+ */
+function urlAllowList(filters) {
+  if (!Array.isArray(filters.urls) || !filters.urls.length) return null;
+  if (!filters.urlSet) {
+    filters.urlSet = new Set(filters.urls.map((value) => productPath(value)).filter(Boolean));
+  }
+  return filters.urlSet;
+}
+
+/**
+ * ISO country codes allowed by a `countries` list. Cached on the filter object
+ * because this runs once per listing.
+ * @param {Object} filters
+ * @returns {Set<string>|null}
+ */
+function countryAllowList(filters) {
+  if (!Array.isArray(filters.countries) || !filters.countries.length) return null;
+  if (!filters.countrySet) {
+    filters.countrySet = new Set(
+      filters.countries.map((code) => String(code).trim().toUpperCase()).filter(Boolean),
+    );
+  }
+  return filters.countrySet.size ? filters.countrySet : null;
+}
+
+/**
  * @param {string} value
  * @returns {string}
  */
@@ -110,6 +154,12 @@ export function productPasses(item, filters, skip = '') {
   if (skip !== 'category' && category && item.product_type !== category) return false;
   if (skip !== 'brand' && brand && item.brand !== brand) return false;
   if (skip !== 'country' && country && item.country !== country) return false;
+  const allowedCountries = skip === 'country' ? null : countryAllowList(filters);
+  if (allowedCountries && !allowedCountries.has(String(item.country || '').trim().toUpperCase())) {
+    return false;
+  }
+  const allowedUrls = urlAllowList(filters);
+  if (allowedUrls && !allowedUrls.has(productPath(item.url))) return false;
   if (skip !== 'hours') {
     const hours = Number(item.hours);
     if (hoursMin != null && (Number.isNaN(hours) || hours < hoursMin)) return false;

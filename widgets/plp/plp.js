@@ -28,6 +28,7 @@ import { formatListingPrice } from '../../scripts/locale.js';
 import {
   isLiked, removeLike, saveLike, saveSearch, LIKES_EVENT,
 } from '../../scripts/likes.js';
+import { listingModel } from '../../scripts/recommended.js';
 
 const PAGE_SIZE = 50;
 
@@ -261,6 +262,10 @@ function renderCard(item, copy, rates, terms = []) {
       detail: cardLikeDetail(item, rates),
       image: hasProductImage(item) ? String(item.image).trim() : '',
       likedAt: Date.now(),
+      sku: item.sku ? String(item.sku) : '',
+      model: listingModel(item),
+      country: item.country || '',
+      category: item.product_type || '',
     });
     flyToAccount(save, true);
   });
