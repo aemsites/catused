@@ -102,7 +102,7 @@ export function productPasses(item, filters, skip = '') {
 
   if (skip !== 'scope' && !inCategoryScope(item, categoryScope)) return false;
   if (skip !== 'q' && terms.length) {
-    const haystack = [item.title, item.product_type, item.sku, item.brand]
+    const haystack = [item.title, item.product_type]
       .join(' ')
       .toLowerCase();
     if (!terms.every((term) => haystack.includes(term))) return false;
