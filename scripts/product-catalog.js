@@ -266,15 +266,33 @@ function similarDistance(item, target, rates) {
 }
 
 /**
- * Sorts a product list. `relevance` keeps the incoming order. `similar` ranks
- * by proximity to `target` in year, hours, and USD price.
+ * Index of the earliest query term in the title. Category-only hits sort last.
+ * @param {Object} item
+ * @param {string[]} terms
+ * @returns {number}
+ */
+function titleMatchIndex(item, terms) {
+  const title = String(item.title || '').toLowerCase();
+  let earliest = Number.POSITIVE_INFINITY;
+  terms.forEach((term) => {
+    const at = title.indexOf(term);
+    if (at !== -1 && at < earliest) earliest = at;
+  });
+  return earliest;
+}
+
+/**
+ * Sorts a product list. `relevance` ranks a query by how early it appears in
+ * the title, and otherwise keeps the incoming order. `similar` ranks by
+ * proximity to `target` in year, hours, and USD price.
  * @param {Array<Object>} products
  * @param {string} sort
  * @param {Object<string, number>} rates
  * @param {Object} [target]
+ * @param {string[]} [terms]
  * @returns {Array<Object>}
  */
-export function sortProducts(products, sort, rates, target = null) {
+export function sortProducts(products, sort, rates, target = null, terms = []) {
   const copy = [...products];
   if (sort === 'price-asc') {
     copy.sort((a, b) => (priceUsd(a, rates) || 0) - (priceUsd(b, rates) || 0));
@@ -286,6 +304,8 @@ export function sortProducts(products, sort, rates, target = null) {
     copy.sort((a, b) => (Number(a.hours) || 0) - (Number(b.hours) || 0));
   } else if (sort === 'similar' && target) {
     copy.sort((a, b) => similarDistance(a, target, rates) - similarDistance(b, target, rates));
+  } else if (terms.length) {
+    copy.sort((a, b) => titleMatchIndex(a, terms) - titleMatchIndex(b, terms));
   }
   return copy;
 }
@@ -485,7 +505,9 @@ export function queryProducts(products, spec = {}) {
     const sku = String(spec.similar.sku || '');
     pool = matches.filter((item) => String(item.sku) !== sku && hasProductImage(item));
   }
-  const sorted = needItems ? sortProducts(pool, spec.sort, rates, spec.similar) : matches;
+  const sorted = needItems
+    ? sortProducts(pool, spec.sort, rates, spec.similar, terms)
+    : matches;
   const pages = Math.max(1, Math.ceil(count / Math.max(pageSize, 1)));
   let page = Math.max(1, spec.page || 1);
   if (page > pages) page = pages;
@@ -547,7 +569,7 @@ export function suggestProducts(products, query) {
       q, terms, keywords: [], equipment: [], categories: [],
     };
   }
-  const equipment = filterProducts(products, { q });
+  const equipment = sortProducts(filterProducts(products, { q }), 'relevance', null, null, terms);
   const brands = matchingUniques(equipment.map((item) => item.brand), terms);
   const brandKeys = new Set(brands.map((brand) => brand.toLowerCase()));
   const otherKeywords = matchingUniques(
