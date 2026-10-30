@@ -44,18 +44,6 @@
   background: var(--color-bg);
 }
 
-.pdp .pdp-back {
-  display: inline-flex;
-  gap: var(--space-100);
-  align-items: center;
-  margin-bottom: var(--space-300);
-  color: var(--color-link);
-  font-size: var(--text-s);
-  text-decoration: underline;
-}
-
-.pdp-back:hover { text-decoration: underline; }
-
 .pdp-header-row {
   display: flex;
   gap: var(--space-300);
@@ -1539,4 +1527,3 @@ html.pdp-dialog-open body {
 .pdp-scale-dot.is-filled {
   background: var(--color-green);
 }
-

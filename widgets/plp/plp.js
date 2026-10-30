@@ -29,6 +29,7 @@ import {
   isLiked, removeLike, saveLike, saveSearch, LIKES_EVENT,
 } from '../../scripts/likes.js';
 import { listingModel } from '../../scripts/recommended.js';
+import buildBreadcrumbs from '../../scripts/breadcrumbs.js';
 
 const PAGE_SIZE = 50;
 
@@ -348,6 +349,16 @@ export default async function decorate(widget) {
   ]);
   const categoryScope = impliedCategoryScope(listingPath, categories);
   hydrateCopy(widget, copy);
+
+  if (categoryPage) {
+    const breadcrumbs = await buildBreadcrumbs(categories, { pathname: listingPath });
+    const section = widget.closest('.section');
+    if (breadcrumbs && !section?.querySelector('.breadcrumbs')) {
+      const heading = section?.querySelector('.default-content-wrapper h1');
+      if (heading) heading.before(breadcrumbs);
+      else widget.prepend(breadcrumbs);
+    }
+  }
 
   const form = widget.querySelector('form');
   const grid = widget.querySelector('#plp-grid');

@@ -117,8 +117,8 @@ export async function loadCurrencyRates() {
 }
 
 /**
- * Loads the category tree used to scope PLP listings by pathname.
- * Only needed on `/categories/…` pages. Prefers same-origin `/categories.json`.
+ * Loads the category tree for PLP scoping and PLP/PDP breadcrumbs.
+ * Prefers same-origin `/categories.json`.
  * @returns {Promise<Array<{ path: string, title: string }>>}
  */
 export async function loadCategories() {

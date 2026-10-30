@@ -1,4 +1,5 @@
-import { loadCurrencyRates, watchCatalog } from '../../scripts/product-index.js';
+import { loadCategories, loadCurrencyRates, watchCatalog } from '../../scripts/product-index.js';
+import buildBreadcrumbs from '../../scripts/breadcrumbs.js';
 import { formatListingPrice } from '../../scripts/locale.js';
 import { isLiked, removeLike, saveLike } from '../../scripts/likes.js';
 import { saveViewed } from '../../scripts/viewed.js';
@@ -342,7 +343,7 @@ function wireDialog(block, dialogSelector, openerSelector, closeSelector) {
 }
 
 /**
- * Builds the page header: back link, family eyebrow, title and save button.
+ * Builds the page header: breadcrumb, family eyebrow, title and save button.
  *
  * Deliberately a `<div>`, not a `<header>`: `styles.css` sets a bare
  * `header { height: var(--nav-height) }` for the site nav, which would clamp
@@ -350,15 +351,14 @@ function wireDialog(block, dialogSelector, openerSelector, closeSelector) {
  *
  * @param {string} eyebrow
  * @param {string} title
+ * @param {HTMLElement|null} breadcrumbs
  * @returns {HTMLElement}
  */
-function buildHeader(eyebrow, title) {
+function buildHeader(eyebrow, title, breadcrumbs) {
   const header = document.createElement('div');
   header.className = 'pdp-header';
 
-  const back = add('a', 'pdp-back', header, 'Search');
-  back.href = '/';
-  back.prepend(icon('chevron', 'pdp-rot-180'));
+  if (breadcrumbs) header.append(breadcrumbs);
 
   const row = add('div', 'pdp-header-row', header);
   const titles = add('div', null, row);
@@ -468,7 +468,11 @@ export default async function decorate(block) {
       viewedAt: Date.now(),
     });
   }
-  const rates = await loadCurrencyRates();
+  const [rates, categories] = await Promise.all([loadCurrencyRates(), loadCategories()]);
+  const breadcrumbs = await buildBreadcrumbs(categories, {
+    productTitle: name,
+    categoryTitle: eyebrow,
+  });
 
   // The pipeline emits one <p><picture> per image, then the rendered
   // `description` as a list. Capture both before the block is rebuilt; the first
@@ -490,7 +494,7 @@ export default async function decorate(block) {
   const photoPictures = pictures.filter((picture) => !videoByPicture.has(picture));
   block.textContent = '';
 
-  block.append(buildHeader(eyebrow, name));
+  block.append(buildHeader(eyebrow, name, breadcrumbs));
 
   const hero = add('div', 'pdp-main', block);
   hero.append(

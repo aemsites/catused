@@ -32,3 +32,21 @@ npm run lint
 1. Install the [AEM CLI](https://github.com/adobe/helix-cli): `npm install -g @adobe/aem-cli`
 1. Start AEM Proxy: `aem up` (opens your browser at `http://localhost:3000`)
 1. Open the `{repo}` directory in your favorite IDE and start coding :)
+
+## Category breadcrumbs
+
+Category PLPs and PDPs automatically render a breadcrumb using the same-origin
+`/categories.json` sheet (with the existing catalog-origin fallback). Each row's
+`path` defines its hierarchy and `title` supplies its label. Ancestors link to
+`/categories/{path}`; the current page is not linked.
+
+PLPs resolve their category from the page URL. PDPs match the product's
+`custom.equipmentFamily.name` to a unique category title and append the product
+name. Missing or ambiguous matches show only Home and the product name, without
+guessing a category. Search filters do not change the page's breadcrumb.
+
+Run the breadcrumb unit tests with:
+
+```sh
+node --experimental-default-type=module --test test/breadcrumbs.test.mjs
+```
