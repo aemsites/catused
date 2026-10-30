@@ -1205,6 +1205,7 @@
     flex-direction: column;
     gap: 2px;
   }
+  
   .pdp-listing .pdp-btn-sm {
     display: inline-flex;
     width: auto;
